@@ -22,6 +22,7 @@ nextflow.enable.dsl=2
 // See https://training.nextflow.io/basic_training/modules/#importing-modules 
 include { check_input } from './modules/check_input'
 include { generate_PRS_snp_positions_list } from './modules/generate_PRS_snp_positions_list.nf' 
+include { remove_chr_from_BAM } from './modules/remove_chr_from_BAM.nf'
 
 // Print a header for your pipeline 
 log.info """\
@@ -88,6 +89,7 @@ if ( params.help || params.scorefile == false ){
 	//check_input(Channel.fromPath(params.input, checkIfExists: true))
 	
 	generate_PRS_snp_positions_list(params.scorefile)
+    remove_chr_from_BAM(generate_PRS_snp_positions_list.out.PRS_snp_positions)
 }}
 
 // Print workflow execution summary 
