@@ -21,8 +21,7 @@ nextflow.enable.dsl=2
 // Each of these is a separate .nf script saved in modules/ directory
 // See https://training.nextflow.io/basic_training/modules/#importing-modules 
 include { check_input } from './modules/check_input'
-include { group_samples } from './modules/group_samples'
-include { generate_report } from './modules/generate_report' 
+include { generate_PRS_snp_positions_list } from './modules/generate_PRS_snp_positions_list.nf' 
 
 // Print a header for your pipeline 
 log.info """\
@@ -38,7 +37,7 @@ Cite this pipeline @ INSERT DOI
 =======================================================================================
 Workflow run parameters 
 =======================================================================================
-input       : ${params.input}
+scorefile       : ${params.scorefile}
 results     : ${params.outdir}
 workDir     : ${workflow.workDir}
 =======================================================================================
@@ -51,11 +50,11 @@ workDir     : ${workflow.workDir}
 
 def helpMessage() {
     log.info"""
-  Usage:  nextflow run main.nf --input <samples.tsv> 
+  Usage:  nextflow run main.nf --scorefile <scorefile.txt> 
 
   Required Arguments:
 
-  --input		Specify full path and name of sample input file.
+  --scorefile	Specify full path and name of score file.
 
   Optional Arguments:
 
@@ -70,7 +69,7 @@ workflow {
 
 // Show help message if --help is run or (||) a required parameter (input) is not provided
 
-if ( params.help || params.input == false ){   
+if ( params.help || params.scorefile == false ){   
 // Invoke the help function above and exit
 	helpMessage()
 	exit 1
@@ -86,26 +85,9 @@ if ( params.help || params.input == false ){
 	// See https://training.nextflow.io/basic_training/channels/ 
 
 	// DEMO CODE: DELETE FOR YOUR OWN WORKFLOWS - VALIDATE INPUT SAMPLES 
-	check_input(Channel.fromPath(params.input, checkIfExists: true))
-
-	// DEMO CODE: DELETE FOR YOUR OWN WORKFLOWS - EXAMPLE PROCESS - SPLIT SAMPLESHEET DEPENDING ON SEQUENCING PLATFORM
-	// See https://training.nextflow.io/basic_training/processes/#inputs 
-	// Define the input channel for this process
-	group_samples_in = check_input.out.checked_samplesheet
-
-	// Run the process with its input channel
-	group_samples(group_samples_in)
+	//check_input(Channel.fromPath(params.input, checkIfExists: true))
 	
-	// DEMO CODE: DELETE FOR YOUR OWN WORKFLOWS - EXAMPLE PROCESS - SUMMARISE COHORT FROM SAMPLESHEETS
-	// Define the input channel for this process using Nextflow mix operator and some groovy (the use of 'map')
-	// See: https://www.nextflow.io/docs/latest/operator.html
-	generate_report_in = group_samples.out.illumina
-                     .map { file -> tuple(file, 'Illumina') }
-                     .mix(group_samples.out.pacbio
-                          .map { file -> tuple(file, 'PacBio') })
-	
-	// DEMO CODE: DELETE FOR YOUR OWN WORKFLOWS - Run the process with its input channel
-	generate_report(generate_report_in)
+	generate_PRS_snp_positions_list(params.scorefile)
 }}
 
 // Print workflow execution summary 
