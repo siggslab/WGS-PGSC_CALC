@@ -38,9 +38,10 @@ Cite this pipeline @ INSERT DOI
 =======================================================================================
 Workflow run parameters 
 =======================================================================================
-scorefile       : ${params.scorefile}
+scorefile   : ${params.scorefile}
 results     : ${params.outdir}
 workDir     : ${workflow.workDir}
+bamfile	    : ${params.bamfile}
 =======================================================================================
 
 """
@@ -51,11 +52,12 @@ workDir     : ${workflow.workDir}
 
 def helpMessage() {
     log.info"""
-  Usage:  nextflow run main.nf --scorefile <scorefile.txt> 
+  Usage:  nextflow run main.nf --scorefile <scorefile.txt> -- bamfile <bamfile.bam> --outdir <output_directory>
 
   Required Arguments:
 
   --scorefile	Specify full path and name of score file.
+  --bamfile		Specify full path and name of BAM file.
 
   Optional Arguments:
 
@@ -89,7 +91,7 @@ if ( params.help || params.scorefile == false ){
 	//check_input(Channel.fromPath(params.input, checkIfExists: true))
 	
 	generate_PRS_snp_positions_list(params.scorefile)
-    remove_chr_from_BAM(generate_PRS_snp_positions_list.out.PRS_snp_positions)
+    remove_chr_from_BAM(params.bamfile)
 }}
 
 // Print workflow execution summary 
