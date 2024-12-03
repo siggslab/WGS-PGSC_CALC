@@ -20,11 +20,12 @@ nextflow.enable.dsl=2
 // Import processes or subworkflows to be run in the workflow
 // Each of these is a separate .nf script saved in modules/ directory
 // See https://training.nextflow.io/basic_training/modules/#importing-modules 
-include { check_input } from './modules/check_input'
-include { generate_PRS_snp_positions_list } from './modules/generate_PRS_snp_positions_list.nf' 
-include { remove_chr_from_BAM } from './modules/remove_chr_from_BAM.nf'
-include { download_scorefiles } from './modules/download_scorefiles.nf'
-include { combine_PRS_snp_positions_lists } from './modules/combine_PRS_snp_positions_lists.nf'
+include { check_input } 						from './modules/check_input'
+include { generate_PRS_snp_positions_list } 	from './modules/generate_PRS_snp_positions_list.nf' 
+include { remove_chr_from_BAM } 				from './modules/remove_chr_from_BAM.nf'
+include { download_scorefiles } 				from './modules/download_scorefiles.nf'
+include { combine_PRS_snp_positions_lists } 	from './modules/combine_PRS_snp_positions_lists.nf'
+include { GATK_haplotype_caller } 				from './modules/GATK_haplotype_caller.nf'
 
 // Print a header for your pipeline 
 log.info """\
@@ -48,6 +49,7 @@ target_build: ${params.target_build}
 pgs_id	   	: ${params.pgs_id}
 efo_id	   	: ${params.efo_id}
 pgp_id	   	: ${params.pgp_id}
+ref 	    : ${params.ref}
 =======================================================================================
 
 """
@@ -96,7 +98,7 @@ workflow {
 
 // Show help message if --help is run or (||) a required parameter (input) is not provided
 
-if ( params.help || !params.bamfile || !params.target_build || 
+if ( params.help || !params.bamfile || !params.target_build || !params.ref ||
     (params.target_build != 'GRCh37' && params.target_build != 'GRCh38') || 
     !(params.pgs_id || params.efo_id || params.pgp_id || params.scorefile) ) {  
 // Invoke the help function above and exit
@@ -116,7 +118,7 @@ if ( params.help || !params.bamfile || !params.target_build ||
 	// DEMO CODE: DELETE FOR YOUR OWN WORKFLOWS - VALIDATE INPUT SAMPLES 
 	//check_input(Channel.fromPath(params.input, checkIfExists: true))
 	
-	//Download Scorefiles - Subworkflow
+	//SUBWORKFLOW Download - Scorefiles
 	ch_scores = Channel.empty()
     if (params.scorefile) {
         ch_scores = ch_scores.mix(Channel.fromPath(params.scorefile, checkIfExists: true))
@@ -147,7 +149,18 @@ if ( params.help || !params.bamfile || !params.target_build ||
 	//Combine all PRS_snp_positions.list files into one, removing duplicate lines
 	combine_PRS_snp_positions_lists(prs_snp_positions_files)
 
+    //TODO: Not sure if this is best method, should I be using GRCh37 instead?
+    //This seems very resource intensive
     remove_chr_from_BAM(params.bamfile)
+
+	//Run GATK HaplotypeCaller on the BAM file
+    GATK_haplotype_caller(
+        remove_chr_from_BAM.out.bam_file_no_chr,
+        "${params.ref}.fasta", 
+        "${params.ref}.fasta.fai",
+        "${params.ref}.dict",
+        combine_PRS_snp_positions_lists.out.PRS_snp_positions
+        )
 }}
 
 // Print workflow execution summary 
