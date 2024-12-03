@@ -23,6 +23,8 @@ nextflow.enable.dsl=2
 include { check_input } from './modules/check_input'
 include { generate_PRS_snp_positions_list } from './modules/generate_PRS_snp_positions_list.nf' 
 include { remove_chr_from_BAM } from './modules/remove_chr_from_BAM.nf'
+include { download_scorefiles } from './modules/download_scorefiles.nf'
+include { combine_PRS_snp_positions_lists } from './modules/combine_PRS_snp_positions_lists.nf'
 
 // Print a header for your pipeline 
 log.info """\
@@ -42,6 +44,10 @@ scorefile   : ${params.scorefile}
 results     : ${params.outdir}
 workDir     : ${workflow.workDir}
 bamfile	    : ${params.bamfile}
+target_build: ${params.target_build}
+pgs_id	   	: ${params.pgs_id}
+efo_id	   	: ${params.efo_id}
+pgp_id	   	: ${params.pgp_id}
 =======================================================================================
 
 """
@@ -66,13 +72,33 @@ def helpMessage() {
 """.stripIndent()
 }
 
+// Define the prepareAccessions function
+def prepareAccessions(String accession, String key) {
+    def unique_accession = accession.replaceAll('\\s','').tokenize(',').unique()
+    def good_accessions = []
+    unique_accession.each { it ->
+        if (!(it ==~ "(?:PGP|PGS)[0-9]{6}|(?:[A-Za-z]+)_[0-9]+")) {
+            System.err.println "WARNING: ${it} doesn't seem like a valid PGS Catalog accession, ignoring"
+        } else {
+            good_accessions.add(it)
+        }
+    }
+    if (good_accessions) {
+        return [(key): good_accessions.join(" ")]
+    } else {
+        return [(key): ""]
+    }
+}
+
 // Define workflow structure. Include some input/runtime tests here.
 // See https://www.nextflow.io/docs/latest/dsl2.html?highlight=workflow#workflow
 workflow {
 
 // Show help message if --help is run or (||) a required parameter (input) is not provided
 
-if ( params.help || params.scorefile == false ){   
+if ( params.help || !params.bamfile || !params.target_build || 
+    (params.target_build != 'GRCh37' && params.target_build != 'GRCh38') || 
+    !(params.pgs_id || params.efo_id || params.pgp_id || params.scorefile) ) {  
 // Invoke the help function above and exit
 	helpMessage()
 	exit 1
@@ -90,7 +116,37 @@ if ( params.help || params.scorefile == false ){
 	// DEMO CODE: DELETE FOR YOUR OWN WORKFLOWS - VALIDATE INPUT SAMPLES 
 	//check_input(Channel.fromPath(params.input, checkIfExists: true))
 	
-	generate_PRS_snp_positions_list(params.scorefile)
+	//Download Scorefiles - Subworkflow
+	ch_scores = Channel.empty()
+    if (params.scorefile) {
+        ch_scores = ch_scores.mix(Channel.fromPath(params.scorefile, checkIfExists: true))
+    }
+
+    // make sure accessions look sensible before querying PGS Catalog
+    def pgs_id = prepareAccessions(params.pgs_id, "pgs_id")
+    def pgp_id = prepareAccessions(params.pgp_id, "pgp_id")
+	def efo_id = prepareAccessions(params.efo_id, "efo_id")
+    
+    def accessions = pgs_id + pgp_id + efo_id
+
+    if (!accessions.every { it.value == "" }) {
+        download_scorefiles(accessions, params.target_build)
+        ch_scores = ch_scores.mix(download_scorefiles.out.scorefiles)
+    }
+
+    if (!params.scorefile && accessions.every { it.value == "" }) {
+        Nextflow.error("No valid accessions or scoring files provided. Please double check --pgs_id, --pgp_id, --trait_efo, or --scorefile parameters")
+    }
+
+	//END SUBWORKFLOW
+
+	//Run generate_PRS_snp_positions_list for each scorefile
+	generate_PRS_snp_positions_list(ch_scores.flatten())
+		.collect()
+		.set { prs_snp_positions_files }
+	//Combine all PRS_snp_positions.list files into one, removing duplicate lines
+	combine_PRS_snp_positions_lists(prs_snp_positions_files)
+
     remove_chr_from_BAM(params.bamfile)
 }}
 
