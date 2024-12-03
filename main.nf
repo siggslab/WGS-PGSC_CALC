@@ -26,6 +26,7 @@ include { remove_chr_from_BAM } 				from './modules/remove_chr_from_BAM.nf'
 include { download_scorefiles } 				from './modules/download_scorefiles.nf'
 include { combine_PRS_snp_positions_lists } 	from './modules/combine_PRS_snp_positions_lists.nf'
 include { GATK_haplotype_caller } 				from './modules/GATK_haplotype_caller.nf'
+include { GATK_genotype_GVCFs } 				from './modules/GATK_genotype_GVCFs.nf'
 
 // Print a header for your pipeline 
 log.info """\
@@ -160,6 +161,15 @@ if ( params.help || !params.bamfile || !params.target_build || !params.ref ||
         "${params.ref}.fasta.fai",
         "${params.ref}.dict",
         combine_PRS_snp_positions_lists.out.PRS_snp_positions
+        )
+
+    //Run GATK GenotypeGVCFs on the gVCF file
+    GATK_genotype_GVCFs(
+        "${params.ref}.fasta",
+        "${params.ref}.fasta.fai",
+        "${params.ref}.dict",
+        GATK_haplotype_caller.out.haplotypeCalled_gvcf,
+        GATK_haplotype_caller.out.haplotypeCalled_gvcf_idx
         )
 }}
 
