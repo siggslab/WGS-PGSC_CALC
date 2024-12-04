@@ -20,6 +20,8 @@ process GATK_genotype_GVCFs {
 	path(ref_dict)
 	path(gvcf_file)
 	path(gvcf_idx_file)
+	path(dbsnp_file)
+	path(dbsnp_idx_file)
 
 
 	// Define output(s)
@@ -34,6 +36,7 @@ process GATK_genotype_GVCFs {
 	gatk --java-options "-Xmx4g" GenotypeGVCFs \
 		-R ${ref_file} \
 		-V ${gvcf_file}\
-		-O ${gvcf_file.simpleName}_gt.vcf --include-non-variant-sites true
+		-O ${gvcf_file.simpleName}_gt.vcf --include-non-variant-sites true \
+		--dbsnp ${dbsnp_file}
 	"""
  }

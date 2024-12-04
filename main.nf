@@ -51,6 +51,7 @@ pgs_id	   	: ${params.pgs_id}
 efo_id	   	: ${params.efo_id}
 pgp_id	   	: ${params.pgp_id}
 ref 	    : ${params.ref}
+dbsnp       : ${params.dbsnp}
 =======================================================================================
 
 """
@@ -99,7 +100,7 @@ workflow {
 
 // Show help message if --help is run or (||) a required parameter (input) is not provided
 
-if ( params.help || !params.bamfile || !params.target_build || !params.ref ||
+if ( params.help || !params.bamfile || !params.target_build || !params.ref || !params.dbsnp ||
     (params.target_build != 'GRCh37' && params.target_build != 'GRCh38') || 
     !(params.pgs_id || params.efo_id || params.pgp_id || params.scorefile) ) {  
 // Invoke the help function above and exit
@@ -160,7 +161,9 @@ if ( params.help || !params.bamfile || !params.target_build || !params.ref ||
         "${params.ref}.fasta", 
         "${params.ref}.fasta.fai",
         "${params.ref}.dict",
-        combine_PRS_snp_positions_lists.out.PRS_snp_positions
+        combine_PRS_snp_positions_lists.out.PRS_snp_positions,
+        params.dbsnp,
+        "${params.dbsnp}.idx"
         )
 
     //Run GATK GenotypeGVCFs on the gVCF file
@@ -169,7 +172,9 @@ if ( params.help || !params.bamfile || !params.target_build || !params.ref ||
         "${params.ref}.fasta.fai",
         "${params.ref}.dict",
         GATK_haplotype_caller.out.haplotypeCalled_gvcf,
-        GATK_haplotype_caller.out.haplotypeCalled_gvcf_idx
+        GATK_haplotype_caller.out.haplotypeCalled_gvcf_idx,
+        params.dbsnp,
+        "${params.dbsnp}.idx"
         )
 }}
 

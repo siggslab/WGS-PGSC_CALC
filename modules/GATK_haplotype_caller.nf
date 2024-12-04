@@ -20,6 +20,8 @@ process GATK_haplotype_caller {
 	path(ref_fai)
 	path(ref_dict)
 	path(prs_snp_pos_file)
+	path(dbsnp_file)
+	path(dbsnp_idx_file)
 
 	// Define output(s)
 	// See: https://www.nextflow.io/docs/latest/process.html#outputs
@@ -35,6 +37,7 @@ process GATK_haplotype_caller {
 		-R ${ref_file} \
 		-L ${prs_snp_pos_file} \
 		-I ${bam_file}  \
-		-O ${bam_file.simpleName}-haplotypeCalled.g.vcf -ERC BP_RESOLUTION
+		-O ${bam_file.simpleName}-haplotypeCalled.g.vcf -ERC BP_RESOLUTION \
+		--dbsnp ${dbsnp_file}
 	"""
  }
