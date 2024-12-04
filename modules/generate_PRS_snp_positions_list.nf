@@ -21,7 +21,7 @@ process generate_PRS_snp_positions_list {
 	// See: https://www.nextflow.io/docs/latest/process.html#script
 	script:
 	// Determine the command to read the file based on its extension
-	def readCommand = scoring_file.name.endsWith(".gz") ? "gzcat" : "cat"
+	def readCommand = scoring_file.name.endsWith(".gz") ? "zcat" : "cat"
 	"""
 	# Bash script to process the scoring file and generate the PRS_snp_positions.list
 	$readCommand ${scoring_file} | awk 'BEGIN {FS="\t"} 
