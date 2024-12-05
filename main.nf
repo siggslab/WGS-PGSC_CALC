@@ -28,6 +28,7 @@ include { combine_PRS_snp_positions_lists } 	from './modules/combine_PRS_snp_pos
 include { GATK_haplotype_caller } 				from './modules/GATK_haplotype_caller.nf'
 include { GATK_genotype_GVCFs } 				from './modules/GATK_genotype_GVCFs.nf'
 include { pgsc_calc } 						    from './modules/pgsc_calc.nf'
+include { make_samplesheet}                     from './modules/make_samplesheet.nf'
 
 // Print a header for your pipeline 
 log.info """\
@@ -179,8 +180,11 @@ if ( params.help || !params.bamfile || !params.target_build || !params.ref || !p
         "${params.dbsnp}.idx"
         )
 
+    //Make samplesheet from processed VCF
+    make_samplesheet(GATK_genotype_GVCFs.out.gvcf_genotyped)
+
     //Run pg_sc_calc with input files
-    pgsc_calc()
+    //pgsc_calc()
 }}
 
 // Print workflow execution summary 
