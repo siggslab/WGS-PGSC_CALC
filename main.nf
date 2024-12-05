@@ -27,6 +27,7 @@ include { download_scorefiles } 				from './modules/download_scorefiles.nf'
 include { combine_PRS_snp_positions_lists } 	from './modules/combine_PRS_snp_positions_lists.nf'
 include { GATK_haplotype_caller } 				from './modules/GATK_haplotype_caller.nf'
 include { GATK_genotype_GVCFs } 				from './modules/GATK_genotype_GVCFs.nf'
+include { pgsc_calc } 						    from './modules/pgsc_calc.nf'
 
 // Print a header for your pipeline 
 log.info """\
@@ -42,16 +43,17 @@ Cite this pipeline @ INSERT DOI
 =======================================================================================
 Workflow run parameters 
 =======================================================================================
-scorefile   : ${params.scorefile}
-results     : ${params.outdir}
-workDir     : ${workflow.workDir}
-bamfile	    : ${params.bamfile}
-target_build: ${params.target_build}
-pgs_id	   	: ${params.pgs_id}
-efo_id	   	: ${params.efo_id}
-pgp_id	   	: ${params.pgp_id}
-ref 	    : ${params.ref}
-dbsnp       : ${params.dbsnp}
+scorefile           : ${params.scorefile}
+results             : ${params.outdir}
+workDir             : ${workflow.workDir}
+bamfile	            : ${params.bamfile}
+target_build        : ${params.target_build}
+pgs_id	        	: ${params.pgs_id}
+efo_id	   	        : ${params.efo_id}
+pgp_id	   	        : ${params.pgp_id}
+ref 	            : ${params.ref}
+dbsnp               : ${params.dbsnp}
+singularityCacheDir : ${params.singularityCacheDir}
 =======================================================================================
 
 """
@@ -176,6 +178,9 @@ if ( params.help || !params.bamfile || !params.target_build || !params.ref || !p
         params.dbsnp,
         "${params.dbsnp}.idx"
         )
+
+    //Run pg_sc_calc with input files
+    pgsc_calc()
 }}
 
 // Print workflow execution summary 
