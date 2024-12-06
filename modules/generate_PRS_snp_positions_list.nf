@@ -36,7 +36,8 @@ process generate_PRS_snp_positions_list {
 			} 
 		} 
 		header_found == 1 { 
-			print \$chr_col \":\" \$pos_col \"-\" \$pos_col 
+			if (\$chr_col ~ /^(1?[0-9]|2[0-2]|X|Y|XY)$/ && \$pos_col ~ /^[0-9]+$/) {
+				print \$chr_col \":\" \$pos_col \"-\" \$pos_col 
+			}
 		}' > ${scoring_file.simpleName}_PRS_snp_positions.list
-	"""
  }
