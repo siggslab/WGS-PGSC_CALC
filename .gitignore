@@ -8,3 +8,5 @@ work/
 test/vep/
 bin/*.o
 bin/*.e
+pgsc_calc*
+pgsc_calc_workflow/

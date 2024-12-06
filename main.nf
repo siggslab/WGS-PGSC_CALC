@@ -184,7 +184,13 @@ if ( params.help || !params.bamfile || !params.target_build || !params.ref || !p
     make_samplesheet(GATK_genotype_GVCFs.out.gvcf_genotyped)
 
     //Run pg_sc_calc with input files
-    //pgsc_calc()
+    pgsc_calc(
+        make_samplesheet.out.samplesheet,
+        GATK_genotype_GVCFs.out.gvcf_genotyped,
+        params.target_build,
+        ch_scores.flatten().collect(),
+        workflow.workDir
+    )
 }}
 
 // Print workflow execution summary 

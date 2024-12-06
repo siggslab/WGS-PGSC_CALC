@@ -21,7 +21,7 @@ process make_samplesheet {
 	// See: https://www.nextflow.io/docs/latest/process.html#script
 	script:
 	"""
-	basename=\$(basename ${processed_vcf})
+	basename=\$(basename ${processed_vcf} .vcf)
 	cat <<EOF > samplesheet.csv
 	sampleset,path_prefix,chrom,format
 	cineca,\${basename},,vcf
