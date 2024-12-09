@@ -36,8 +36,10 @@ process pgsc_calc {
 	scorefile_paths=\$(printf " %s" ${scorefiles.collect { it.toString() }.join(',')})
 	export NXF_SINGULARITY_CACHEDIR=${params.singularityCacheDir}
 	min_overlap=\$(cat ${min_overlap})
-	export QUARTO_CACHE=${workDir}/quarto_cache
-    mkdir -p \$QUARTO_CACHE
+	
+	export HOME=${workDir}/home
+    mkdir -p \$HOME
+
 	nextflow run /opt/pgsc_calc/main.nf \
 		-profile conda \
 		--input ${samplesheet} \
@@ -45,7 +47,13 @@ process pgsc_calc {
     	--scorefile "*.txt.gz" \
 		-w ${workflow.projectDir}/work/pgsc_calc \
 		--min_overlap \$min_overlap \
+		--outDir ${workflow.projectDir}/results \
+
+	cp -r results/* ${workflow.projectDir}/${params.outdir}	
 	"""
+	// export QUARTO_CACHE=${workDir}/quarto_cache
+    // mkdir -p \$QUARTO_CACHE
+
 	//\${scorefile_paths}
 	/*"""
 	cd ${workflow.projectDir}/work/pgsc_calc
