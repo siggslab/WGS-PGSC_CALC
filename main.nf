@@ -29,6 +29,7 @@ include { GATK_haplotype_caller } 				from './modules/GATK_haplotype_caller.nf'
 include { GATK_genotype_GVCFs } 				from './modules/GATK_genotype_GVCFs.nf'
 include { pgsc_calc } 						    from './modules/pgsc_calc.nf'
 include { make_samplesheet}                     from './modules/make_samplesheet.nf'
+include { calculate_min_overlap }               from './modules/calculate_min_overlap.nf'
 
 // Print a header for your pipeline 
 log.info """\
@@ -55,6 +56,7 @@ pgp_id	   	        : ${params.pgp_id}
 ref 	            : ${params.ref}
 dbsnp               : ${params.dbsnp}
 singularityCacheDir : ${params.singularityCacheDir}
+min_overlap         : ${params.min_overlap}
 =======================================================================================
 
 """
@@ -183,13 +185,17 @@ if ( params.help || !params.bamfile || !params.target_build || !params.ref || !p
     //Make samplesheet from processed VCF
     make_samplesheet(GATK_genotype_GVCFs.out.gvcf_genotyped)
 
+    //Calculate Minimum Overlap (reference sites otherwise lower %)
+    calculate_min_overlap(GATK_genotype_GVCFs.out.gvcf_genotyped, params.min_overlap)
+
     //Run pg_sc_calc with input files
     pgsc_calc(
         make_samplesheet.out.samplesheet,
         GATK_genotype_GVCFs.out.gvcf_genotyped,
         params.target_build,
         ch_scores.flatten().collect(),
-        workflow.workDir
+        workflow.workDir,
+        calculate_min_overlap.out.min_overlap
     )
 }}
 

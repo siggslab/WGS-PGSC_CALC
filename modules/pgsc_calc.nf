@@ -20,6 +20,7 @@ process pgsc_calc {
 	val target_build
 	file(scorefiles)
 	path(workDir)
+	path(min_overlap)
 	
 
 
@@ -34,12 +35,16 @@ process pgsc_calc {
 	"""
 	scorefile_paths=\$(printf " %s" ${scorefiles.collect { it.toString() }.join(',')})
 	export NXF_SINGULARITY_CACHEDIR=${params.singularityCacheDir}
+	min_overlap=\$(cat ${min_overlap})
+	export QUARTO_CACHE=${workDir}/quarto_cache
+    mkdir -p \$QUARTO_CACHE
 	nextflow run /opt/pgsc_calc/main.nf \
 		-profile conda \
 		--input ${samplesheet} \
 		--target_build ${target_build} \
     	--scorefile "*.txt.gz" \
 		-w ${workflow.projectDir}/work/pgsc_calc \
+		--min_overlap \$min_overlap \
 	"""
 	//\${scorefile_paths}
 	/*"""
