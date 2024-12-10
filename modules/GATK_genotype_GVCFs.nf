@@ -22,6 +22,7 @@ process GATK_genotype_GVCFs {
 	path(gvcf_idx_file)
 	path(dbsnp_file)
 	path(dbsnp_idx_file)
+	path(prs_snp_pos_file)
 
 
 	// Define output(s)
@@ -37,6 +38,7 @@ process GATK_genotype_GVCFs {
 		-R ${ref_file} \
 		-V ${gvcf_file}\
 		-O ${gvcf_file.simpleName}_gt.vcf --include-non-variant-sites true \
+		-L ${prs_snp_pos_file} \
 		--dbsnp ${dbsnp_file}
 	"""
  }

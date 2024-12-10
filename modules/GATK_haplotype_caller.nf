@@ -37,7 +37,7 @@ process GATK_haplotype_caller {
 		-R ${ref_file} \
 		-L ${prs_snp_pos_file} \
 		-I ${bam_file}  \
-		-O ${bam_file.simpleName}-haplotypeCalled.g.vcf -ERC BP_RESOLUTION \
+		-O ${bam_file.simpleName}-haplotypeCalled.g.vcf -ERC GVCF \
 		--dbsnp ${dbsnp_file}
 	"""
  }

@@ -46,7 +46,7 @@ Cite this pipeline @ INSERT DOI
 Workflow run parameters 
 =======================================================================================
 scorefile           : ${params.scorefile}
-results             : ${params.outdir}
+outdir             : ${params.outdir}
 workDir             : ${workflow.workDir}
 bamfile	            : ${params.bamfile}
 target_build        : ${params.target_build}
@@ -179,7 +179,8 @@ if ( params.help || !params.bamfile || !params.target_build || !params.ref || !p
         GATK_haplotype_caller.out.haplotypeCalled_gvcf,
         GATK_haplotype_caller.out.haplotypeCalled_gvcf_idx,
         params.dbsnp,
-        "${params.dbsnp}.idx"
+        "${params.dbsnp}.idx",
+        combine_PRS_snp_positions_lists.out.PRS_snp_positions
         )
 
     //Make samplesheet from processed VCF
@@ -195,7 +196,10 @@ if ( params.help || !params.bamfile || !params.target_build || !params.ref || !p
         params.target_build,
         ch_scores.flatten().collect(),
         workflow.workDir,
-        calculate_min_overlap.out.min_overlap
+        calculate_min_overlap.out.min_overlap,
+        "${params.ref}.fasta", 
+        "${params.ref}.fasta.fai",
+        "${params.ref}.dict"
     )
 }}
 
