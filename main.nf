@@ -35,12 +35,10 @@ include { calculate_min_overlap }               from './modules/calculate_min_ov
 log.info """\
 
 =======================================================================================
-Name of the pipeline - nf 
+WGS PGSC_CALC - nf 
 =======================================================================================
 
-Created by <YOUR NAME> 
-Find documentation @ https://sydney-informatics-hub.github.io/Nextflow_DSL2_template_guide/
-Cite this pipeline @ INSERT DOI
+Created by Elijah Bradford 
 
 =======================================================================================
 Workflow run parameters 
@@ -67,17 +65,29 @@ min_overlap         : ${params.min_overlap}
 
 def helpMessage() {
     log.info"""
-  Usage:  nextflow run main.nf --scorefile <scorefile.txt> -- bamfile <bamfile.bam> --outdir <output_directory>
+  Usage:  nextflow run main.nf --bamfile <bamfile.bam> --target_build <GRCh37|GRCh38> --ref <reference.fasta> --dbsnp <dbsnp.vcf> [--scorefile <scorefile.txt> | --pgs_id <pgs_id> | --efo_id <efo_id> | --pgp_id <pgp_id>] --outdir <output_directory>
 
   Required Arguments:
 
-  --scorefile	Specify full path and name of score file.
-  --bamfile		Specify full path and name of BAM file.
+  --bamfile        Specify full path and name of BAM file.
+  --target_build   Specify the target build. Must be 'GRCh37' or 'GRCh38'.
+  --ref            Specify full path and name of the reference genome file.
+  --dbsnp          Specify full path and name of the dbSNP file.
+  --outdir         Specify path to output directory.
+  
+  At least one of the following must be provided:
+  --scorefile      Specify full path and name of score file.
+  --pgs_id         Specify PGS Catalog ID.
+  --efo_id         Specify EFO ID.
+  --pgp_id         Specify PGP ID.
 
   Optional Arguments:
 
-  --outdir	Specify path to output directory. 
-	
+  --help           Show this help message and exit.
+  --singularityCacheDir Specify path to Singularity cache directory.
+  --min_overlap    Specify minimum overlap.
+  --run_ancestry   Specify whether to run ancestry.
+  
 """.stripIndent()
 }
 
@@ -109,8 +119,34 @@ if ( params.help || !params.bamfile || !params.target_build || !params.ref || !p
     (params.target_build != 'GRCh37' && params.target_build != 'GRCh38') || 
     !(params.pgs_id || params.efo_id || params.pgp_id || params.scorefile) ) {  
 // Invoke the help function above and exit
-	helpMessage()
-	exit 1
+	switch (true) {
+        case params.help:
+            log.info "Help message:"
+
+        case !params.bamfile:
+            log.info "Error: Missing parameter '--bamfile'"
+
+        case !params.target_build:
+            log.info "Error: Missing parameter '--target_build'"
+
+        case params.target_build != 'GRCh37' && params.target_build != 'GRCh38':
+            log.info "Error: Invalid 'target_build'. Must be 'GRCh37' or 'GRCh38'"
+
+        case !params.ref:
+            log.info "Error: Missing parameter '--ref'"
+
+        case !params.dbsnp:
+            log.info "Error: Missing parameter '--dbsnp'"
+
+        case !(params.pgs_id || params.efo_id || params.pgp_id || params.scorefile):
+            log.info "Error: At least one of '--pgs_id', '--efo_id', '--pgp_id', or '--scorefile' must be provided"
+
+        default:
+            // If none of the above are a problem, then run the workflow
+            break
+    }
+    helpMessage()
+    exit 1
 	// consider adding some extra contigencies here.
 	// could validate path of all input files in list?
 	// could validate indexes for reference exist?
