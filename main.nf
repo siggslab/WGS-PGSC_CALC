@@ -30,6 +30,8 @@ include { GATK_genotype_GVCFs } 				from './modules/GATK_genotype_GVCFs.nf'
 include { pgsc_calc } 						    from './modules/pgsc_calc.nf'
 include { make_samplesheet}                     from './modules/make_samplesheet.nf'
 include { calculate_min_overlap }               from './modules/calculate_min_overlap.nf'
+include { convert_vcf_to_plink }                from './modules/convert_vcf_to_plink.nf'
+include { bcftools_normalise_vcf }              from './modules/bcftools_normalise_vcf.nf'
 
 // Print a header for your pipeline 
 log.info """\
@@ -55,6 +57,7 @@ ref 	            : ${params.ref}
 dbsnp               : ${params.dbsnp}
 singularityCacheDir : ${params.singularityCacheDir}
 min_overlap         : ${params.min_overlap}
+run_ancestry        : ${params.run_ancestry}
 =======================================================================================
 
 """
@@ -219,11 +222,20 @@ if ( params.help || !params.bamfile || !params.target_build || !params.ref || !p
         combine_PRS_snp_positions_lists.out.PRS_snp_positions
         )
 
+    //normalise VCF to handle multiallelic sites
+    bcftools_normalise_vcf(GATK_genotype_GVCFs.out.gvcf_genotyped)
+
+    //Convert VCF to PLINK format
+    convert_vcf_to_plink(bcftools_normalise_vcf.out.normalised_vcf)
+
     //Make samplesheet from processed VCF
-    make_samplesheet(GATK_genotype_GVCFs.out.gvcf_genotyped)
+    //make_samplesheet(GATK_genotype_GVCFs.out.gvcf_genotyped)
+
+    //Make_samplesheet from PLINK files
+    make_samplesheet(convert_vcf_to_plink.out.bed)
 
     //Calculate Minimum Overlap (reference sites otherwise lower %)
-    calculate_min_overlap(GATK_genotype_GVCFs.out.gvcf_genotyped, params.min_overlap)
+    //calculate_min_overlap(GATK_genotype_GVCFs.out.gvcf_genotyped, params.min_overlap)
 
     //Run pg_sc_calc with input files
     pgsc_calc(
@@ -232,10 +244,9 @@ if ( params.help || !params.bamfile || !params.target_build || !params.ref || !p
         params.target_build,
         ch_scores.flatten().collect(),
         workflow.workDir,
-        calculate_min_overlap.out.min_overlap,
-        "${params.ref}.fasta", 
-        "${params.ref}.fasta.fai",
-        "${params.ref}.dict"
+        convert_vcf_to_plink.out.bed,
+        convert_vcf_to_plink.out.bim,
+        convert_vcf_to_plink.out.fam
     )
 }}
 

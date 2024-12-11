@@ -20,7 +20,9 @@ process pgsc_calc {
 	val target_build
 	file(scorefiles)
 	path(workDir)
-	path(min_overlap)
+	path(bed)
+	path(bim)
+	path(fam)
 	
 
 
@@ -35,7 +37,6 @@ process pgsc_calc {
 	"""
 	scorefile_paths=\$(printf " %s" ${scorefiles.collect { it.toString() }.join(',')})
 	export NXF_SINGULARITY_CACHEDIR=${params.singularityCacheDir}
-	min_overlap=\$(cat ${min_overlap})
 	
 	export HOME=${workDir}/home
     mkdir -p \$HOME
@@ -46,13 +47,15 @@ process pgsc_calc {
 		--target_build ${target_build} \
     	--scorefile "*.txt.gz" \
 		-w ${workflow.projectDir}/work/pgsc_calc \
-		--min_overlap \$min_overlap \
 		--outDir ${workflow.projectDir}/results \
+		--min_overlap 0.5 \
+		
 
 	cp -r results/* ${workflow.projectDir}/${params.outdir}	
 	"""
-	// export QUARTO_CACHE=${workDir}/quarto_cache
-    // mkdir -p \$QUARTO_CACHE
+	//${pgsc_ref_file ? "--run_ancestry ${pgsc_ref_file} \\" : ""}
+	//min_overlap=\$(cat ${min_overlap})
+	//--min_overlap \$min_overlap \
 
 	//\${scorefile_paths}
 	/*"""
