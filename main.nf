@@ -32,6 +32,7 @@ include { make_samplesheet}                     from './modules/make_samplesheet
 include { calculate_min_overlap }               from './modules/calculate_min_overlap.nf'
 include { convert_vcf_to_plink }                from './modules/convert_vcf_to_plink.nf'
 include { bcftools_normalise_vcf }              from './modules/bcftools_normalise_vcf.nf'
+include {correct_alt_for_homref}                from './modules/correct_alt_for_homref.nf'
 
 // Print a header for your pipeline 
 log.info """\
@@ -231,6 +232,9 @@ if ( params.help || !params.bamfile || !params.target_build || !params.ref || !p
     //Make samplesheet from processed VCF
     //make_samplesheet(GATK_genotype_GVCFs.out.gvcf_genotyped)
 
+    //Correct ALT for HOMREF
+    correct_alt_for_homref(GATK_genotype_GVCFs.out.gvcf_genotyped)
+
     //Make_samplesheet from PLINK files
     make_samplesheet(convert_vcf_to_plink.out.bed)
 
@@ -240,7 +244,7 @@ if ( params.help || !params.bamfile || !params.target_build || !params.ref || !p
     //Run pg_sc_calc with input files
     pgsc_calc(
         make_samplesheet.out.samplesheet,
-        GATK_genotype_GVCFs.out.gvcf_genotyped,
+        correct_alt_for_homref.out.homref_corrected_vcf,
         params.target_build,
         ch_scores.flatten().collect(),
         workflow.workDir,

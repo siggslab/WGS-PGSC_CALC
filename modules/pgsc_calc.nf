@@ -48,7 +48,7 @@ process pgsc_calc {
     	--scorefile "*.txt.gz" \
 		-w ${workflow.projectDir}/work/pgsc_calc \
 		--outDir ${workflow.projectDir}/results \
-		--min_overlap 0.5 \
+		--min_overlap 0.75 \
 		
 
 	cp -r results/* ${workflow.projectDir}/${params.outdir}	

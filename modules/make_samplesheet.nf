@@ -24,7 +24,7 @@ process make_samplesheet {
 	basename=\$(basename ${processed_vcf} *)
 	cat <<EOF > samplesheet.csv
 	sampleset,path_prefix,chrom,format
-	cineca,${processed_vcf.baseName},,bfile
+	cineca,${processed_vcf.baseName},,vcf
 	EOF
 	"""
  }
