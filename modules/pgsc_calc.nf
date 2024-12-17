@@ -20,9 +20,9 @@ process pgsc_calc {
 	val target_build
 	file(scorefiles)
 	path(workDir)
-	path(bed)
-	path(bim)
-	path(fam)
+	// path(bed)
+	// path(bim)
+	// path(fam)
 	
 
 
@@ -36,10 +36,14 @@ process pgsc_calc {
 	script:
 	"""
 	scorefile_paths=\$(printf " %s" ${scorefiles.collect { it.toString() }.join(',')})
+	export SINGULARITY_CACHEDIR=${params.singularityCacheDir}
 	export NXF_SINGULARITY_CACHEDIR=${params.singularityCacheDir}
-	
+	export CONDA_PKGS_DIRS=${params.singularityCacheDir}
+	#I think it might be supposed to be export SINGULARITY_CACHEDIR=${params.singularityCacheDir}
 	export HOME=${workDir}/home
     mkdir -p \$HOME
+
+	export PATH=\$PATH:/opt/pbs/default/bin/:/opt/singularity/bin/singularity
 
 	nextflow run /opt/pgsc_calc/main.nf \
 		-profile conda \
@@ -48,7 +52,8 @@ process pgsc_calc {
     	--scorefile "*.txt.gz" \
 		-w ${workflow.projectDir}/work/pgsc_calc \
 		--outDir ${workflow.projectDir}/results \
-		--min_overlap 0.75 \
+		--min_overlap 0.0001 \
+		--singularityCacheDir /g/data/tn36/pgs/WGS-PGSC_CALC/WGS-PGSC_CALC/singularity_cache \
 		
 
 	cp -r results/* ${workflow.projectDir}/${params.outdir}	
@@ -56,6 +61,7 @@ process pgsc_calc {
 	//${pgsc_ref_file ? "--run_ancestry ${pgsc_ref_file} \\" : ""}
 	//min_overlap=\$(cat ${min_overlap})
 	//--min_overlap \$min_overlap \
+	//--keep-ambiguous true
 
 	//\${scorefile_paths}
 	/*"""

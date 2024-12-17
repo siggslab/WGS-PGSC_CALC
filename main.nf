@@ -33,6 +33,7 @@ include { calculate_min_overlap }               from './modules/calculate_min_ov
 include { convert_vcf_to_plink }                from './modules/convert_vcf_to_plink.nf'
 include { bcftools_normalise_vcf }              from './modules/bcftools_normalise_vcf.nf'
 include {correct_alt_for_homref}                from './modules/correct_alt_for_homref.nf'
+include {populate_alt_alleles}                  from './modules/populate_alt_alleles.nf'
 
 // Print a header for your pipeline 
 log.info """\
@@ -224,33 +225,45 @@ if ( params.help || !params.bamfile || !params.target_build || !params.ref || !p
         )
 
     //normalise VCF to handle multiallelic sites
-    bcftools_normalise_vcf(GATK_genotype_GVCFs.out.gvcf_genotyped)
+    //bcftools_normalise_vcf(GATK_genotype_GVCFs.out.gvcf_genotyped, "${params.ref}.fasta")
 
     //Convert VCF to PLINK format
-    convert_vcf_to_plink(bcftools_normalise_vcf.out.normalised_vcf)
+    //convert_vcf_to_plink(bcftools_normalise_vcf.out.normalised_vcf)
+
+    //Populate ALT Alleles
+    //TODO: need to combine scorefiles still
+    populate_alt_alleles(GATK_genotype_GVCFs.out.gvcf_genotyped, ch_scores, "${params.ref}.fasta", "${workflow.projectDir}/lib/STEP1_process_inputs.sh")
+    //Testing normalising after processing
+    //bcftools_normalise_vcf(populate_alt_alleles.out.combined_processed_vcf, "${params.ref}.fasta")
 
     //Make samplesheet from processed VCF
     //make_samplesheet(GATK_genotype_GVCFs.out.gvcf_genotyped)
+    make_samplesheet(populate_alt_alleles.out.combined_processed_vcf)
 
     //Correct ALT for HOMREF
-    correct_alt_for_homref(GATK_genotype_GVCFs.out.gvcf_genotyped)
+    //correct_alt_for_homref(GATK_genotype_GVCFs.out.gvcf_genotyped)
 
     //Make_samplesheet from PLINK files
-    make_samplesheet(convert_vcf_to_plink.out.bed)
+    //make_samplesheet(convert_vcf_to_plink.out.bed)
 
     //Calculate Minimum Overlap (reference sites otherwise lower %)
     //calculate_min_overlap(GATK_genotype_GVCFs.out.gvcf_genotyped, params.min_overlap)
 
+    //TODO
+    //Maybe I should run pgsc_calc test config with internet access, to load dependencies, then run main pipeline...
+
     //Run pg_sc_calc with input files
     pgsc_calc(
         make_samplesheet.out.samplesheet,
-        correct_alt_for_homref.out.homref_corrected_vcf,
+        populate_alt_alleles.out.combined_processed_vcf,
+        //GATK_genotype_GVCFs.out.gvcf_genotyped,
+        //bcftools_normalise_vcf.out.normalised_vcf,
         params.target_build,
         ch_scores.flatten().collect(),
         workflow.workDir,
-        convert_vcf_to_plink.out.bed,
-        convert_vcf_to_plink.out.bim,
-        convert_vcf_to_plink.out.fam
+        // convert_vcf_to_plink.out.bed,
+        // convert_vcf_to_plink.out.bim,
+        // convert_vcf_to_plink.out.fam
     )
 }}
 
