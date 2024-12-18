@@ -45,6 +45,9 @@ process pgsc_calc {
 
 	export PATH=\$PATH:/opt/pbs/default/bin/:/opt/singularity/bin/singularity
 
+	#Clear the pgsc_calc work directory as it causes weird caching issues.
+	rm -rf ${workflow.projectDir}/work/pgsc_calc
+
 	nextflow run /opt/pgsc_calc/main.nf \
 		-profile conda \
 		--input ${samplesheet} \
@@ -52,7 +55,7 @@ process pgsc_calc {
     	--scorefile "*.txt.gz" \
 		-w ${workflow.projectDir}/work/pgsc_calc \
 		--outDir ${workflow.projectDir}/results \
-		--min_overlap 0.0001 \
+		--min_overlap 0.75 \
 		--singularityCacheDir /g/data/tn36/pgs/WGS-PGSC_CALC/WGS-PGSC_CALC/singularity_cache \
 		
 
