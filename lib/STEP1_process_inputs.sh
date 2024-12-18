@@ -34,33 +34,42 @@ BEGIN {
 }' > reference_only_sites.tsv
 
 #Extract harmonized CHR, POS, EFFECT, OTHER allele fields, and ID from the scoring file
-zcat $scoring_file | awk '
-BEGIN {
-    FS = OFS = "\t";
-}
-# Skip lines starting with # or empty lines
-/^#/ || /^$/ { next }
-# Process the first non-comment line as the header
-{
-    if (header_found == 0) {
-        for (i = 1; i <= NF; i++) {
-            if ($i == "rsID") id_idx = i;
-            else if ($i == "hm_chr") chr_idx = i;
-            else if ($i == "hm_pos") pos_idx = i;
-            else if ($i == "effect_allele") effect_allele_idx = i;
-            else if ($i == "other_allele") other_allele_idx = i;
-            else if ($i == "hm_inferOtherAllele" && !other_allele_idx) other_allele_idx = i;
-        }
-        # print "ID", "CHR", "POS", "EFFECT_ALLELE", "OTHER_ALLELE";
-        header_found = 1;
-        next;
+echo "Scoring files: $scoring_file"
+for file in $scoring_file; do
+    echo "Processing $file"
+    zcat $file | awk '
+    BEGIN {
+        FS = OFS = "\t";
     }
-}
-# Process the data lines
-{
-    id = (id_idx ? $id_idx : ".");
-    print id, $chr_idx, $pos_idx, $effect_allele_idx, $other_allele_idx;
-}' > scoring_file_extracted.tsv
+    # Skip lines starting with # or empty lines
+    /^#/ || /^$/ { next }
+    # Process the first non-comment line as the header
+    {
+        if (header_found == 0) {
+            for (i = 1; i <= NF; i++) {
+                if ($i == "rsID") id_idx = i;
+                else if ($i == "hm_chr") chr_idx = i;
+                else if ($i == "hm_pos") pos_idx = i;
+                else if ($i == "effect_allele") effect_allele_idx = i;
+                else if ($i == "other_allele") other_allele_idx = i;
+                else if ($i == "hm_inferOtherAllele" && !other_allele_idx) other_allele_idx = i;
+            }
+            # print "ID", "CHR", "POS", "EFFECT_ALLELE", "OTHER_ALLELE";
+            header_found = 1;
+            next;
+        }
+    }
+    # Process the data lines
+    {
+        id = (id_idx ? $id_idx : ".");
+        print id, $chr_idx, $pos_idx, $effect_allele_idx, $other_allele_idx;
+    }' >> scoring_file_extracted.tsv
+done
+
+# Remove duplicate lines from scoring_file_extracted.tsv
+awk '!seen[$0]++' scoring_file_extracted.tsv > scoring_file_extracted_unique.tsv
+mv scoring_file_extracted_unique.tsv scoring_file_extracted.tsv
+
 
 # Sort both files by CHR and POS
 sort -k1,1n -k2,2n reference_only_sites.tsv > reference_only_sites_sorted.tsv

@@ -23,6 +23,6 @@ process populate_alt_alleles {
 	script:
 	"""
 		#script has changed. again!
-		bash $script $input_vcf $scoring_file $ref_file
+		bash $script $input_vcf "$scoring_file" $ref_file
 	"""
  }

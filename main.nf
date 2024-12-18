@@ -231,8 +231,7 @@ if ( params.help || !params.bamfile || !params.target_build || !params.ref || !p
     //convert_vcf_to_plink(bcftools_normalise_vcf.out.normalised_vcf)
 
     //Populate ALT Alleles
-    //TODO: need to combine scorefiles still
-    populate_alt_alleles(GATK_genotype_GVCFs.out.gvcf_genotyped, ch_scores, "${params.ref}.fasta", "${workflow.projectDir}/lib/STEP1_process_inputs.sh")
+    populate_alt_alleles(GATK_genotype_GVCFs.out.gvcf_genotyped, ch_scores.flatten().collect(), "${params.ref}.fasta", "${workflow.projectDir}/lib/STEP1_process_inputs.sh")
     //Testing normalising after processing
     //bcftools_normalise_vcf(populate_alt_alleles.out.combined_processed_vcf, "${params.ref}.fasta")
 
