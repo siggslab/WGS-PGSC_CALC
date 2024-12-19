@@ -17,6 +17,7 @@ process populate_alt_alleles {
 	// See: https://www.nextflow.io/docs/latest/process.html#outputs
 	output:
 	path("combined_processed.vcf"), emit: combined_processed_vcf
+	path("populate_alt_alleles.log"), emit: populate_alt_alleles_log
 
 	// Define code to execute 
 	// See: https://www.nextflow.io/docs/latest/process.html#script

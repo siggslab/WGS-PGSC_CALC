@@ -8,13 +8,30 @@ input_vcf=$1
 scoring_file=$2
 ref_file=$3
 
+num_total=0
+num_variants=0
+num_non_variants=0
+num_non_variant_snps=0
+num_non_variant_extra_multiallelic=0
+num_non_variant_indels=0
+num_non_variant_snps_assigned_alts=0
+num_non_variant_indels_assigned_alts=0
+num_non_variant_discarded_snps=0
+num_non_variant_discarded_indels=0
+
 #Dependencies
 module load bcftools
 module load bedtools
 
+num_total=$(bcftools view -H $input_vcf | wc -l)
+
 #Seperate variant and reference sites from the input VCF file
 bcftools view -v snps,indels,mnps,other -o variants.vcf $input_vcf
-bcftools view -e 'TYPE="snp" | TYPE="indel" | TYPE="mnp" | TYPE="other"' -o non_variants.vcf $input_vcf
+#-T ^variants.vcf ensures no sites in variants.vcf are included in non_variants.vcf ( some multiallelics were origninally being included)
+bcftools view -e 'TYPE="snp" | TYPE="indel" | TYPE="mnp" | TYPE="other"' -T ^variants.vcf -o non_variants.vcf $input_vcf 
+
+num_variants=$(bcftools view -H variants.vcf | sort | uniq | wc -l)
+num_non_variants=$(bcftools view -H non_variants.vcf | sort | uniq |  wc -l)
 
 #Get input header
 bcftools view -h $input_vcf > input_header.txt
@@ -95,7 +112,7 @@ FNR==NR {
 }' scoring_file_extracted_sorted.tsv reference_only_sites_sorted.tsv > merged_table.tsv
 
 # Split the merged table into SNPs and INDELs
-awk '
+awk -v num_non_variant_snps="$num_non_variant_snps" -v num_non_variant_indels="$num_non_variant_indels" -v num_non_variant_extra_multiallelic="$num_non_variant_extra_multiallic" '
 BEGIN {
     FS = OFS = "\t";
     print "CHR", "POS", "rsID", "EFFECT_ALLELE", "OTHER_ALLELE", "REF", "FORMAT", "SAMPLE" > "merged_snps.tsv";
@@ -117,12 +134,35 @@ NR > 1 {
             break;
         }
     }
-    if (is_snp) {
-        print $0 > "merged_snps.tsv";
-    } else {
-        print $0 > "merged_indels.tsv";
-    }
+    # for (i in other_alleles){
+    #     if (i != 1) {
+    #         num_non_variant_extra_multiallelic++;
+    #     }
+        
+        if (is_snp) {
+            # print $1, $2, $3, effect_alleles[1], other_alleles[i], $6, $7, $8 > "merged_snps.tsv";
+            num_non_variant_snps++;
+            print $0 > "merged_snps.tsv";
+        } else {
+            # print $1, $2, $3, effect_alleles[1], other_alleles[i], $6, $7, $8 > "merged_indels.tsv";
+            num_non_variant_indels++;
+            print $0 > "merged_indels.tsv";
+        }
+    # }
+}
+END {
+    print num_non_variant_snps > "num_non_variant_snps.tmp";
+    print num_non_variant_indels > "num_non_variant_indels.tmp";
+    print num_non_variant_extra_multiallelic > "num_non_variant_extra_multiallelic.tmp";
 }' merged_table.tsv
+
+# Read the updated values from the temporary files
+num_non_variant_snps=$(cat num_non_variant_snps.tmp)
+num_non_variant_indels=$(cat num_non_variant_indels.tmp)
+num_non_variant_extra_multiallelic=$(cat num_non_variant_extra_multiallelic.tmp)
+
+# Remove the temporary files
+rm num_non_variant_snps.tmp num_non_variant_indels.tmp num_non_variant_extra_multiallelic.tmp
 
 # Function to get the reverse complement of a DNA sequence
 # rev_comp() {
@@ -147,6 +187,8 @@ function rev_comp(seq, rev_seq) {
 BEGIN {
     FS = OFS = "\t";
     print "CHR", "POS", "rsID", "EFFECT_ALLELE", "OTHER_ALLELE", "REF", "FORMAT", "SAMPLE", "ALT";
+    num_non_variant_snps_assigned_alts = 0;
+    num_non_variant_discarded_snps = 0;
 }
 NR > 1 {
     ref = $6;
@@ -169,26 +211,27 @@ NR > 1 {
         }
     }
 
-    # Check for strand flip
-    # if (alt!="" && (effect==alt && other==ref) ) {
-    #     temp = ref;
-    #     ref = alt;
-    #     alt = temp;
-    # }
-    
     sample = $8;
-    #Testing editing the GT field of the format
-    # gt = substr(sample, 1, 3);
-    # rest = substr(sample, 4);
-    # sample = "1/1" rest;
 
     if (alt != "") {
         print $1, $2, $3, $4, $5, ref, $7, sample, alt;
-        #print $1, $2, $3, $4, $5, ".", $7, $8, ".";
+        num_non_variant_snps_assigned_alts++;
     } else {
         print "Discarding: Unable to determine ALT allele for SNP at " $1 ":" $2 > "/dev/stderr";
+        num_non_variant_discarded_snps++;
     }
+}
+END {
+    print num_non_variant_snps_assigned_alts > "num_non_variant_snps_assigned_alts.tmp";
+    print num_non_variant_discarded_snps > "num_non_variant_discarded_snps.tmp";
 }' merged_snps.tsv > merged_snps_with_alt.tsv
+
+# Read the updated values from the temporary files
+num_non_variant_snps_assigned_alts=$(cat num_non_variant_snps_assigned_alts.tmp)
+num_non_variant_discarded_snps=$(cat num_non_variant_discarded_snps.tmp)
+
+# Remove the temporary files
+rm num_non_variant_snps_assigned_alts.tmp num_non_variant_discarded_snps.tmp
 
 ########SUBWORKFLOW: Add SEQ column to INDEL table #########
 # Create a BED file from the INDELs table
@@ -236,11 +279,13 @@ NR > 1 {
 }' indels_sequences.fa merged_indels.tsv > merged_indels_with_seq.tsv
 
 #TODO: Handle REF with len > 1
-#Assign ALT alleles for INDELs
+# Assign ALT alleles for INDELs
 awk '
 BEGIN {
     FS = OFS = "\t";
     print "CHR", "POS", "rsID", "EFFECT_ALLELE", "OTHER_ALLELE", "REF", "FORMAT", "SAMPLE", "SEQ", "ALT";
+    num_non_variant_indels_assigned_alts = 0;
+    num_non_variant_discarded_indels = 0;
 }
 NR > 1 {
     ref = $6;
@@ -255,9 +300,11 @@ NR > 1 {
 
     if (effect_arr[1] != other_arr[1]) {
         print "Discarding: INDEL alleles do not match at " $1 ":" $2 ". Likely un-normalised INDEL" > "/dev/stderr";
+        num_non_variant_discarded_indels++;
         next;
     } else if ((effect_arr[1] != ref_arr[1]) && (other_arr[1] != ref_arr[1])) {
         print "Discarding: INDEL does not match on forward strand. Either on reverse strand or invalid at " $1 ":" $2 > "/dev/stderr";
+        num_non_variant_discarded_indels++;
         next;
     }
 
@@ -272,19 +319,33 @@ NR > 1 {
         alt = effect;
     } else if (seq_effect == effect && seq_other == other) {
         print "Discarding: Ambiguous INDEL at " $1 ":" $2 > "/dev/stderr";
+        num_non_variant_discarded_indels++;
         next;
     } else if (seq_effect != effect && seq_other != other) {
         print "Discarding: Unexpected invalid INDEL at " $1 ":" $2 > "/dev/stderr";
+        num_non_variant_discarded_indels++;
         next;
     }
 
-
     if (alt != "") {
         print $1, $2, $3, $4, $5, ref, $7, $8, $9, alt;
+        num_non_variant_indels_assigned_alts++;
     } else {
         print "Discarding: Unable to determine ALT allele for INDEL at " $1 ":" $2 > "/dev/stderr";
+        num_non_variant_discarded_indels++;
     }
+}
+END {
+    print num_non_variant_indels_assigned_alts > "num_non_variant_indels_assigned_alts.tmp";
+    print num_non_variant_discarded_indels > "num_non_variant_discarded_indels.tmp";
 }' merged_indels_with_seq.tsv > merged_indels_with_seq_alt.tsv
+
+# Read the updated values from the temporary files
+num_non_variant_indels_assigned_alts=$(cat num_non_variant_indels_assigned_alts.tmp)
+num_non_variant_discarded_indels=$(cat num_non_variant_discarded_indels.tmp)
+
+# Remove the temporary files
+rm num_non_variant_indels_assigned_alts.tmp num_non_variant_discarded_indels.tmp
 
 ##########SUBWORKFLOW - Compile ref only SNPs and INDELS into a VCF ######################
 # Compile the VCF for SNPs
@@ -325,4 +386,20 @@ bcftools index variants.vcf.gz
 
 # Combine the SNP and INDEL and variants VCF files
 bcftools concat -a reference_only_snps.vcf.gz reference_only_indels.vcf.gz variants.vcf.gz -o combined_processed.vcf
+
+
+# Print the logs
+#echo "Number of non-variant SNPs: $num_non_variant_snps ($(($num_non_variant_snps - $num_non_variant_extra_multiallelic)) plus $num_non_variant_extra_multiallelic expanded multiallelics)"
+{
+echo "Total number of variants in input VCF: $num_total"
+echo "Number of variant sites: $num_variants"
+echo "Number of non-variant sites: $num_non_variants"
+# echo "Number of non-variant SNPs: $num_non_variant_snps"
+echo "Number of non-variant SNPs: $num_non_variant_snps ($(($num_non_variant_snps - $num_non_variant_extra_multiallelic)) plus $num_non_variant_extra_multiallelic expanded multiallelics)"
+echo "Number of non-variant INDELs: $num_non_variant_indels"
+echo "Number of non-variant SNPs assigned ALT alleles: $num_non_variant_snps_assigned_alts"
+echo "Number of non-variant SNPs discarded: $num_non_variant_discarded_snps"
+echo "Number of non-variant INDELs assigned ALT alleles: $num_non_variant_indels_assigned_alts"
+echo "Number of non-variant INDELs discarded: $num_non_variant_discarded_indels"
+} | tee populate_alt_alleles.log
 
