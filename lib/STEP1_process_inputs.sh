@@ -395,7 +395,10 @@ echo "Total number of variants in input VCF: $num_total"
 echo "Number of variant sites: $num_variants"
 echo "Number of non-variant sites: $num_non_variants"
 # echo "Number of non-variant SNPs: $num_non_variant_snps"
-echo "Number of non-variant SNPs: $num_non_variant_snps ($(($num_non_variant_snps - $num_non_variant_extra_multiallelic)) plus $num_non_variant_extra_multiallelic expanded multiallelics)"
+echo "Number of non-variant SNPs: $num_non_variant_snps"
+if [ $num_non_variant_extra_multiallelic -ne 0 ]; then
+    echo "($(($num_non_variant_snps - $num_non_variant_extra_multiallelic)) plus $num_non_variant_extra_multiallelic expanded multiallelics)"
+fi
 echo "Number of non-variant INDELs: $num_non_variant_indels"
 echo "Number of non-variant SNPs assigned ALT alleles: $num_non_variant_snps_assigned_alts"
 echo "Number of non-variant SNPs discarded: $num_non_variant_discarded_snps"
