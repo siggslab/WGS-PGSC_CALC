@@ -191,7 +191,7 @@ if ( params.help || !params.bamfile || !params.target_build || !params.ref || !p
 	//END SUBWORKFLOW
 
 	//Run generate_PRS_snp_positions_list for each scorefile
-	generate_PRS_snp_positions_list(ch_scores.flatten())
+	generate_PRS_snp_positions_list(ch_scores.flatten(), params.dbsnp)
 		.collect()
 		.set { prs_snp_positions_files }
 	//Combine all PRS_snp_positions.list files into one, removing duplicate lines
@@ -236,7 +236,8 @@ if ( params.help || !params.bamfile || !params.target_build || !params.ref || !p
         ch_scores.flatten().collect(),
         "${params.ref}.fasta",
         "${workflow.projectDir}/lib/STEP1_process_inputs.sh",
-        params.dbsnp
+        params.dbsnp,
+        combine_PRS_snp_positions_lists.out.PRS_snp_positions
     )
     //Testing normalising after processing
     //bcftools_normalise_vcf(populate_alt_alleles.out.combined_processed_vcf, "${params.ref}.fasta")

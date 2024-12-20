@@ -8,6 +8,7 @@ input_vcf=$1
 scoring_file=$2
 ref_file=$3
 dbsnp_file=$4
+snp_list_file=$5
 
 num_total=0
 num_variants=0
@@ -311,12 +312,21 @@ if awk 'NR > 1 && $5 != "." { found=1; exit } END { exit !found }' merged_indels
     awk '
     BEGIN {
         FS = OFS = "\t";
+        # Load SNP list file into an array
+        declare -A snp_list
+        while IFS= read -r line; do
+            snp_list["$line"]=1
+        done < "$snp_list_file"
     }
     FNR > 1 && $0 !~ /^#/ {
         # Construct the key using the chromosome, position, ID, and REF
         key = $1 ":" $2 ":" $3 ":" $4;
-        # Print the key and ALT value
-        print key, $7;
+        # Construct the snp_list_key using the chromosome and position range
+        snp_list_key = $1 ":" $2 "-" $2;
+        # Print the key and ALT value if snp_list_key is in snp_list
+        if (snp_list_key in snp_list) {
+            print key, $7;
+        }
     }' $dbsnp_file > dbsnp_temp.tsv
 
     # Process the merged_indels_with_seq.tsv file and add the dbsnp_alt column

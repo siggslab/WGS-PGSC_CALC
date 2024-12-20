@@ -13,6 +13,7 @@ process populate_alt_alleles {
 	path(ref_file)
 	path(script)
 	path(dbsnp_file)
+	path(snp_pos_list_file)
 
 	// Define output(s)
 	// See: https://www.nextflow.io/docs/latest/process.html#outputs
@@ -25,6 +26,6 @@ process populate_alt_alleles {
 	script:
 	"""
 		#script has changed. again!
-		bash $script $input_vcf "$scoring_file" $ref_file $dbsnp_file
+		bash $script $input_vcf "$scoring_file" $ref_file $dbsnp_file $snp_pos_list_file
 	"""
  }
