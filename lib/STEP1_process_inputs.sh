@@ -13,6 +13,7 @@ snp_list_file=$5
 num_total=0
 num_variants=0
 num_non_variants=0
+num_non_variants_not_in_scoring_file=0
 num_non_variant_snps=0
 num_non_variant_extra_multiallelic=0
 num_non_variant_indels=0
@@ -56,7 +57,12 @@ BEGIN {
 echo "Scoring files: $scoring_file"
 for file in $scoring_file; do
     echo "Processing $file"
-    zcat $file | awk '
+    if [[ $file == *.gz ]]; then
+        readcommand="zcat"
+    elif [[ $file == *.txt ]]; then
+        readcommand="cat"
+    fi
+    $readcommand $file | awk '
     BEGIN {
         FS = OFS = "\t";
     }
@@ -77,13 +83,21 @@ for file in $scoring_file; do
             }
             # print "ID", "HM_CHR", "HM_POS", "CHR", "POS", "EFFECT_ALLELE", "OTHER_ALLELE";
             header_found = 1;
+            print "id_idx=" id_idx, "hm_chr_idx=" hm_chr_idx, "hm_pos_idx=" hm_pos_idx, "chr_idx=" chr_idx, "pos_idx=" pos_idx, "effect_allele_idx=" effect_allele_idx, "other_allele_idx=" other_allele_idx > "/dev/stderr";
             next;
         }
     }
     # Process the data lines
     {
-        id = (id_idx ? $id_idx : ".");
-        print id, $hm_chr_idx, $hm_pos_idx, $chr_idx, $pos_idx, $effect_allele_idx, $other_allele_idx;
+        if(header_found){
+            id = (id_idx ? $id_idx : ".");
+            hm_chr = (hm_chr_idx ? $hm_chr_idx : ".");
+            hm_pos = (hm_pos_idx ? $hm_pos_idx : ".");
+            chr = (chr_idx ? $chr_idx : ".");
+            pos = (pos_idx ? $pos_idx : ".");
+
+            print id, hm_chr, hm_pos, chr, pos, $effect_allele_idx, $other_allele_idx;
+        }
     }' >> scoring_file_extracted.tsv
 done
 
@@ -97,7 +111,7 @@ sort -k1,1n -k2,2n reference_only_sites.tsv > reference_only_sites_sorted.tsv
 sort -k2,2n -k3,3n scoring_file_extracted.tsv > scoring_file_extracted_sorted.tsv
 
 # Merge the two tables by CHR and POS
-awk '
+awk -v num_non_variants_not_in_scoring_file="$num_non_variants_not_in_scoring_file" '
 BEGIN {
     FS = OFS = "\t";
     print "HM_CHR", "HM_POS", "score_CHR", "score_POS", "rsID", "EFFECT_ALLELE", "OTHER_ALLELE", "REF", "FORMAT", "SAMPLE";
@@ -118,11 +132,20 @@ FNR==NR {
         #score format: "ID", "HM_CHR", "HM_POS", "CHR", "POS", "EFFECT_ALLELE", "OTHER_ALLELE"
         
         print $1, $2, arr[4], arr[5], arr[1], arr[6], arr[7], $3, $4, $5;
+    } else {
+        num_non_variants_not_in_scoring_file++;
     }
+}
+END{
+    print num_non_variants_not_in_scoring_file > "num_non_variants_not_in_scoring_file.tmp";
 }' scoring_file_extracted_sorted.tsv reference_only_sites_sorted.tsv > merged_table.tsv
 
+# Read the number of non_variants not in the scoring file
+num_non_variants_not_in_scoring_file=$(cat num_non_variants_not_in_scoring_file.tmp)
+rm num_non_variants_not_in_scoring_file.tmp
+
 # Split the merged table into SNPs and INDELs
-awk -v num_non_variant_snps="$num_non_variant_snps" -v num_non_variant_indels="$num_non_variant_indels" -v num_non_variant_extra_multiallelic="$num_non_variant_extra_multiallic" '
+awk -v num_non_variant_snps="$num_non_variant_snps" -v num_non_variant_indels="$num_non_variant_indels" -v num_non_variant_extra_multiallelic="$num_non_variant_extra_multiallelic" '
 BEGIN {
     FS = OFS = "\t";
     print "HM_CHR", "HM_POS", "score_CHR", "score_POS", "rsID", "EFFECT_ALLELE", "OTHER_ALLELE", "REF", "FORMAT", "SAMPLE" > "merged_snps.tsv";
@@ -289,7 +312,7 @@ NR > 1 {
     print $0, (key in seq ? seq[key] : "");
 }' indels_sequences.fa merged_indels.tsv > merged_indels_with_seq.tsv
 
-#PGS000004 has INDELS with no rsIDs. PGS000030 has INDELS with rsIDs.
+#PGS000004 has INDELS with no rsIDs. PGS000030 has INDELS with rsIDs (and PGS000052)
 #####ADD dbsnp_alt column to INDELS table
 # Merge dbsnp file with merged_indels_with_seq.tsv based on CHR, POS, ID, REF columns
 
@@ -309,23 +332,29 @@ if awk 'NR > 1 && $5 != "." { found=1; exit } END { exit !found }' merged_indels
 
     # Process the dbsnp file and store the ALT values in a temporary file
     #TODO: only do this for positions in SNPs list.
-    awk '
+    
+    # Load SNP list file into an array
+    declare -A snp_list
+    while IFS= read -r line; do
+        snp_list["$line"]=1
+    done < "$snp_list_file"
+    
+    awk -v snp_list_file="$snp_list_file" '
     BEGIN {
         FS = OFS = "\t";
-        # Load SNP list file into an array
-        declare -A snp_list
-        while IFS= read -r line; do
-            snp_list["$line"]=1
-        done < "$snp_list_file"
+        while ((getline line < snp_list_file) > 0) {
+            snp_list[line] = 1;
+        }
+        close(snp_list_file);
     }
     FNR > 1 && $0 !~ /^#/ {
-        # Construct the key using the chromosome, position, ID, and REF
-        key = $1 ":" $2 ":" $3 ":" $4;
+        # Data is in the format: CHROM, POS, REF, ALT
+        data = $1 ":" $2 ":" $4 ":" $5;
         # Construct the snp_list_key using the chromosome and position range
         snp_list_key = $1 ":" $2 "-" $2;
         # Print the key and ALT value if snp_list_key is in snp_list
         if (snp_list_key in snp_list) {
-            print key, $7;
+            print $3, data;
         }
     }' $dbsnp_file > dbsnp_temp.tsv
 
@@ -333,20 +362,39 @@ if awk 'NR > 1 && $5 != "." { found=1; exit } END { exit !found }' merged_indels
     awk '
     BEGIN {
         FS = OFS = "\t";
+        print "Debug: Starting processing indels" > "/dev/stderr";
     }
-    FNR == NR {
+    FILENAME == "dbsnp_temp.tsv" {
         # Read the dbsnp_temp.tsv file and store the ALT values in an array
-        dbsnp_alt[$1] = $2;
+        dbsnp_data[$1] = $2;
         next;
     }
-    FNR > 1 {
-        # Construct the key using the chromosome, position, ID, and REF
-        key = $3 ":" $4 ":" $5 ":" $8;
-        # Print the line with the added dbsnp_alt column
-        print $0, (key in dbsnp_alt ? dbsnp_alt[key] : ".");
-        if (!(key in dbsnp_alt)) {
-            print "Debug: Key not found in dbsnp_alt array - " key > "/dev/stderr";
+    FILENAME == "merged_indels_with_seq.tsv" && FNR > 1 {
+        #FORMAT HM_CHR  HM_POS  score_CHR  score_POS rsID EFFECT_ALLELE OTHER_ALLELE REF FORMAT SAMPLE SEQ
+        
+        # Get CHROM, POS, REF, ALT from rsID
+        data = dbsnp_data[$5];
+        
+        #print "Debug: Processing rsID " $5 " with data " data > "/dev/stderr";
+
+        if (data != "") {
+            split(data, arr, ":");
+            dbsnp_chr = arr[1];
+            dbsnp_pos = arr[2];
+            dbsnp_ref = arr[3];
+            dbsnp_alt = arr[4];
+            print "Debug: dbsnp_chr=" dbsnp_chr ", dbsnp_pos=" dbsnp_pos ", dbsnp_ref=" dbsnp_ref ", dbsnp_alt=" dbsnp_alt > "/dev/stderr";
+            if( ((dbsnp_chr == $1) && (dbsnp_pos == $2) ) || ( (dbsnp_chr == $3) && (dbsnp_pos == $4)) ){
+                print $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, dbsnp_alt;
+            } else {
+                print "Debug: dbsnp pos does not match scorefile." > "/dev/stderr";
+                print $0, ".";
+            }
+        } else {
+            print "Debug: rsID " $5 " not found in dbsnp file" > "/dev/stderr";
+            print $0, ".";
         }
+        
     }' dbsnp_temp.tsv merged_indels_with_seq.tsv >> merged_indels_with_seq_dbsnp_alt.tsv
 
     # Clean up temporary files
@@ -356,7 +404,79 @@ else
 fi
 
 #####Add alt based on dbsnp_alt column
+awk '
+function rev_comp(seq, rev_seq) {
+    rev_seq = "";
+    for (i = length(seq); i > 0; i--) {
+        base = substr(seq, i, 1);
+        if (base == "A") rev_seq = rev_seq "T";
+        else if (base == "T") rev_seq = rev_seq "A";
+        else if (base == "C") rev_seq = rev_seq "G";
+        else if (base == "G") rev_seq = rev_seq "C";
+    }
+    return rev_seq;
+}
+BEGIN {
+    FS = OFS = "\t";
+    print "HM_CHR", "HM_POS", "score_CHR", "score_POS", "rsID", "EFFECT_ALLELE", "OTHER_ALLELE", "REF", "FORMAT", "SAMPLE", "SEQ", "dbsnp_alt", "ALT";
+    num_non_variant_indels_assigned_alts = 0;
+    num_non_variant_discarded_indels = 0;
+}
+NR > 1 && $12 != "." {
+    ref = $8;
+    effect = $6;
+    other = $7;
+    alt = "";
+    seq = $11;
+    dbsnp_alt = $12;
 
+    split(ref, ref_arr, "");
+    split(effect, effect_arr, "");
+    split(other, other_arr, "");
+
+    split(dbsnp_alt, dbsnp_alt_arr, ",");
+
+    ok_flag = 0;
+    if ((ref == other && dbsnp_alt == effect) || 
+        (ref == effect && dbsnp_alt == other) || 
+        (ref == rev_comp(other) && dbsnp_alt == rev_comp(effect)) || 
+        (ref == rev_comp(effect) && adbsnp_alt == rev_comp(other))) {
+        ok_flag = 1;
+        alt=dbsnp_alt;
+    } else {
+        for (i in dbsnp_alt_arr) {
+            if ((ref == other && dbsnp_alt_arr[i] == effect) || 
+            (ref == effect && dbsnp_alt_arr[i] == other) || 
+            (ref == rev_comp(other) && dbsnp_alt_arr[i] == rev_comp(effect)) || 
+            (ref == rev_comp(effect) && dbsnp_alt_arr[i] == rev_comp(other))) {
+                ok_flag = 1;
+                alt = dbsnp_alt_arr[i];
+                break;
+            }
+        }
+    }
+
+    if(ok_flag){
+        print $1, $2, $3, $4, $5, $6, $7, ref, $9, $10, $11, dbsnp_alt, alt;
+        num_non_variant_indels_assigned_alts++;
+    } else {
+        dbsnp_alt = ".";
+        print $1, $2, $3, $4, $5, $6, $7, ref, $9, $10, $11, dbsnp_alt, alt;
+    }
+    
+}
+NR > 1 && $12 == "."{print $0;}
+END {
+    print num_non_variant_indels_assigned_alts > "num_non_variant_indels_assigned_alts.tmp";
+    print num_non_variant_discarded_indels > "num_non_variant_discarded_indels.tmp";
+}' merged_indels_with_seq_dbsnp_alt.tsv > merged_indels_with_seq_dbsnp_alt_processed.tsv
+
+# Read the updated values from the temporary files
+num_non_variant_indels_assigned_alts=$((num_non_variant_indels_assigned_alts + $(cat num_non_variant_indels_assigned_alts.tmp)))
+num_non_variant_discarded_indels=$((num_non_variant_discarded_indels + $(cat num_non_variant_discarded_indels.tmp)))
+
+# Remove the temporary files
+rm num_non_variant_indels_assigned_alts.tmp num_non_variant_discarded_indels.tmp
 
 #TODO: Make this only apply alt if dbsnp_alt was not added.
 #TODO: Handle REF with len > 1
@@ -364,11 +484,11 @@ fi
 awk '
 BEGIN {
     FS = OFS = "\t";
-    print "HM_CHR", "HM_POS", "score_CHR", "score_POS", "rsID", "EFFECT_ALLELE", "OTHER_ALLELE", "REF", "FORMAT", "SAMPLE", "SEQ", "ALT";
+    print "HM_CHR", "HM_POS", "score_CHR", "score_POS", "rsID", "EFFECT_ALLELE", "OTHER_ALLELE", "REF", "FORMAT", "SAMPLE", "SEQ", "dbsnp_alt", "ALT";
     num_non_variant_indels_assigned_alts = 0;
     num_non_variant_discarded_indels = 0;
 }
-NR > 1 {
+NR > 1 && $12 == "." {
     ref = $8;
     effect = $6;
     other = $7;
@@ -409,21 +529,24 @@ NR > 1 {
     }
 
     if (alt != "") {
-        print $1, $2, $3, $4, $5, $6, $7, ref, $9, $10, $11, alt;
+        print $1, $2, $3, $4, $5, $6, $7, ref, $9, $10, $11, $12, alt;
         num_non_variant_indels_assigned_alts++;
     } else {
         print "Discarding: Unable to determine ALT allele for INDEL at " $1 ":" $2 > "/dev/stderr";
         num_non_variant_discarded_indels++;
     }
 }
+NR > 1 && $12 != "."{
+    print $0;
+}
 END {
     print num_non_variant_indels_assigned_alts > "num_non_variant_indels_assigned_alts.tmp";
     print num_non_variant_discarded_indels > "num_non_variant_discarded_indels.tmp";
-}' merged_indels_with_seq.tsv > merged_indels_with_seq_alt.tsv
+}' merged_indels_with_seq_dbsnp_alt_processed.tsv > merged_indels_with_seq_dbsnp_alt_processed_alt.tsv
 
 # Read the updated values from the temporary files
-num_non_variant_indels_assigned_alts=$(cat num_non_variant_indels_assigned_alts.tmp)
-num_non_variant_discarded_indels=$(cat num_non_variant_discarded_indels.tmp)
+num_non_variant_indels_assigned_alts=$((num_non_variant_indels_assigned_alts + $(cat num_non_variant_indels_assigned_alts.tmp)))
+num_non_variant_discarded_indels=$((num_non_variant_discarded_indels + $(cat num_non_variant_discarded_indels.tmp)))
 
 # Remove the temporary files
 rm num_non_variant_indels_assigned_alts.tmp num_non_variant_discarded_indels.tmp
@@ -454,8 +577,8 @@ BEGIN {
     }
 }
 NR > 1 {
-    print $1, $2, $5, $8, $12, ".", "PASS", ".", $9, $10;
-}' merged_indels_with_seq_alt.tsv > reference_only_indels.vcf
+    print $1, $2, $5, $8, $13, ".", "PASS", ".", $9, $10;
+}' merged_indels_with_seq_dbsnp_alt_processed_alt.tsv > reference_only_indels.vcf
 
 #Compress and index VCF files
 bcftools view -I reference_only_snps.vcf -O z -o reference_only_snps.vcf.gz
@@ -469,14 +592,16 @@ bcftools index variants.vcf.gz
 bcftools concat -a reference_only_snps.vcf.gz reference_only_indels.vcf.gz variants.vcf.gz -o combined_processed.vcf
 
 
+#TODO: Work out why SNPs+INDELS is not non_variants
 # Print the logs
 {
 echo "Total number of variants in input VCF: $num_total"
 echo "Number of variant sites: $num_variants"
 echo "Number of non-variant sites: $num_non_variants"
+echo "Number of non-variant sites in scoring file: $(($num_non_variants - $num_non_variants_not_in_scoring_file))"
 echo "Number of non-variant SNPs: $num_non_variant_snps"
-if [ $num_non_variant_extra_multiallelic -ne 0 ]; then
-    echo "($(($num_non_variant_snps - $num_non_variant_extra_multiallelic)) plus $num_non_variant_extra_multiallelic expanded multiallelics)"
+if [ $num_non_variant_extra_multiallelic -gt 0 ]; then
+    echo "$(($num_non_variant_snps - $num_non_variant_extra_multiallelic)) plus $num_non_variant_extra_multiallelic expanded multiallelics"
 fi
 echo "Number of non-variant INDELs: $num_non_variant_indels"
 echo "Number of non-variant SNPs assigned ALT alleles: $num_non_variant_snps_assigned_alts"

@@ -130,4 +130,4 @@ header_found == 1 {
         }
 
     }
-}' > $(basename "${scoring_file}" .txt.gz )_PRS_snp_positions.list
+}' > $(basename "${scoring_file}" .txt.gz | sed 's/\.txt$//')_PRS_snp_positions.list
