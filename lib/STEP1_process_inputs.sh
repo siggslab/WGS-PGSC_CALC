@@ -401,6 +401,17 @@ if awk 'NR > 1 && $5 != "." { found=1; exit } END { exit !found }' merged_indels
     #rm dbsnp_temp.tsv
 else
     echo "No rows of input indels have an rsID"
+    
+    #Add dbSNP header to file
+    awk '
+    BEGIN {
+        FS = OFS = "\t";
+    }
+    FNR == 1 && FILENAME == ARGV[2] {
+        # Print the header line with the added dbsnp_alt column
+        print $0, "dbsnp_alt";
+        next;
+    }' $dbsnp_file merged_indels_with_seq.tsv > merged_indels_with_seq_dbsnp_alt.tsv
 fi
 
 #####Add alt based on dbsnp_alt column
