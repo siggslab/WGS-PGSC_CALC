@@ -407,11 +407,13 @@ else
     BEGIN {
         FS = OFS = "\t";
     }
-    FNR == 1 && FILENAME == ARGV[2] {
+    FNR == 1  {
         # Print the header line with the added dbsnp_alt column
         print $0, "dbsnp_alt";
         next;
-    }' $dbsnp_file merged_indels_with_seq.tsv > merged_indels_with_seq_dbsnp_alt.tsv
+    }
+    FNR > 1{print $0, "."}
+    ' merged_indels_with_seq.tsv > merged_indels_with_seq_dbsnp_alt.tsv
 fi
 
 #####Add alt based on dbsnp_alt column
