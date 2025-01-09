@@ -11,6 +11,7 @@ process make_samplesheet {
 	// See: https://www.nextflow.io/docs/latest/process.html#inputs
 	input:
 	path(processed_vcf)
+	val(add_sex)
 
 	// Define output(s)
 	// See: https://www.nextflow.io/docs/latest/process.html#outputs
@@ -24,7 +25,7 @@ process make_samplesheet {
 	basename=\$(basename ${processed_vcf} *)
 	cat <<EOF > samplesheet.csv
 	sampleset,path_prefix,chrom,format
-	cineca,${processed_vcf.baseName},,vcf
+	cineca,${processed_vcf.baseName},,${add_sex ? "pfile" : "vcf"}
 	EOF
 	"""
  }

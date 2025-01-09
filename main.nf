@@ -242,10 +242,19 @@ if ( params.help || !params.bamfile || !params.target_build || !params.ref || !p
     )
     //Testing normalising after processing
     //bcftools_normalise_vcf(populate_alt_alleles.out.combined_processed_vcf, "${params.ref}.fasta")
+    if (params.add_sex) {
+        bcftools_normalise_vcf(populate_alt_alleles.out.combined_processed_vcf, "${params.ref}.fasta")
+        convert_vcf_to_plink(bcftools_normalise_vcf.out.normalised_vcf, params.add_sex)
+    } 
+    make_samplesheet(
+        params.add_sex ? convert_vcf_to_plink.out.pgen: populate_alt_alleles.out.combined_processed_vcf,
+        params.add_sex
+    )
+
 
     //Make samplesheet from processed VCF
     //make_samplesheet(GATK_genotype_GVCFs.out.gvcf_genotyped)
-    make_samplesheet(populate_alt_alleles.out.combined_processed_vcf)
+    // make_samplesheet(populate_alt_alleles.out.combined_processed_vcf)
 
     //Correct ALT for HOMREF
     //correct_alt_for_homref(GATK_genotype_GVCFs.out.gvcf_genotyped)
@@ -259,10 +268,17 @@ if ( params.help || !params.bamfile || !params.target_build || !params.ref || !p
     //TODO
     //Maybe I should run pgsc_calc test config with internet access, to load dependencies, then run main pipeline...
 
+    // Create a channel of paths for the input files
+    if(params.add_sex){
+        populate_alt_alleles.out.combined_processed_vcf.concat(convert_vcf_to_plink.out.pgen, convert_vcf_to_plink.out.pvar, convert_vcf_to_plink.out.psam).set { ch_input_files }
+    } else {
+        populate_alt_alleles.out.combined_processed_vcf.set { ch_input_files }
+    }
+    
     //Run pg_sc_calc with input files
     pgsc_calc(
         make_samplesheet.out.samplesheet,
-        populate_alt_alleles.out.combined_processed_vcf,
+        ch_input_files.flatten().collect(),
         //GATK_genotype_GVCFs.out.gvcf_genotyped,
         //bcftools_normalise_vcf.out.normalised_vcf,
         params.target_build,
