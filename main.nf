@@ -49,7 +49,7 @@ Created by Elijah Bradford
 Workflow run parameters 
 =======================================================================================
 scorefile           : ${params.scorefile}
-outdir             : ${params.outdir}
+outdir              : ${params.outdir}
 workDir             : ${workflow.workDir}
 bamfile	            : ${params.bamfile}
 target_build        : ${params.target_build}
@@ -61,6 +61,7 @@ dbsnp               : ${params.dbsnp}
 singularityCacheDir : ${params.singularityCacheDir}
 min_overlap         : ${params.min_overlap}
 run_ancestry        : ${params.run_ancestry}
+add_sex             : ${params.add_sex}
 =======================================================================================
 
 """
@@ -284,9 +285,7 @@ if ( params.help || !params.bamfile || !params.target_build || !params.ref || !p
         params.target_build,
         ch_scores.flatten().collect(),
         workflow.workDir,
-        // convert_vcf_to_plink.out.bed,
-        // convert_vcf_to_plink.out.bim,
-        // convert_vcf_to_plink.out.fam
+        params.min_overlap
     )
 }}
 
