@@ -16,18 +16,19 @@ process convert_vcf_to_plink {
 	// See: https://www.nextflow.io/docs/latest/process.html#inputs
 	input:
 	path(vcf_file)
+	path(sex_info)
 
 	// Define output(s)
 	// See: https://www.nextflow.io/docs/latest/process.html#outputs
 	output:
-	path("${vcf_file.baseName}.bed"), emit: bed
-	path("${vcf_file.baseName}.bim"), emit: bim
-	path("${vcf_file.baseName}.fam"), emit: fam
+	path("${vcf_file.baseName}.pgen"), emit: pgen
+	path("${vcf_file.baseName}.pvar"), emit: pvar
+	path("${vcf_file.baseName}.psam"), emit: psam
 
 	// Define code to execute 
 	// See: https://www.nextflow.io/docs/latest/process.html#script
 	script:
 	"""
-		plink2 --vcf ${vcf_file} --make-bed --out ${vcf_file.baseName}
+		plink2 --vcf ${vcf_file} --make-pgen --update-sex ${sex_info} 1 --out ${vcf_file.baseName}
 	"""
  }

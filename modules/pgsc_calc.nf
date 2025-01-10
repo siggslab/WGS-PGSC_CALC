@@ -20,9 +20,7 @@ process pgsc_calc {
 	val target_build
 	file(scorefiles)
 	path(workDir)
-	// path(bed)
-	// path(bim)
-	// path(fam)
+	val(min_overlap)
 	
 
 
@@ -55,7 +53,7 @@ process pgsc_calc {
     	--scorefile "*.txt.gz" \
 		-w ${workflow.projectDir}/work/pgsc_calc \
 		--outDir ${workflow.projectDir}/results \
-		--min_overlap 0.75 \
+		--min_overlap ${min_overlap} \
 		--singularityCacheDir /g/data/tn36/pgs/WGS-PGSC_CALC/WGS-PGSC_CALC/singularity_cache \
 		
 

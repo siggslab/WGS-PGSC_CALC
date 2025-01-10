@@ -26,6 +26,7 @@ process bcftools_normalise_vcf {
 	// See: https://www.nextflow.io/docs/latest/process.html#script
 	script:
 	"""
-	bcftools norm -f ${ref_file} ${vcf_file} -o ${vcf_file.baseName}_normalised.vcf
+	#bcftools norm -f ${ref_file} -m - ${vcf_file} -o ${vcf_file.baseName}_normalised.vcf
+	bcftools norm -m -both ${vcf_file} -o ${vcf_file.baseName}_normalised.vcf
 	"""
  }
