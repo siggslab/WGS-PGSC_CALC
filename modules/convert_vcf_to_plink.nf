@@ -29,6 +29,6 @@ process convert_vcf_to_plink {
 	// See: https://www.nextflow.io/docs/latest/process.html#script
 	script:
 	"""
-		plink2 --vcf ${vcf_file} --make-pgen --update-sex ${sex_info} --out ${vcf_file.baseName}
+		plink2 --vcf ${vcf_file} --make-pgen --update-sex ${sex_info} 1 --out ${vcf_file.baseName}
 	"""
  }
