@@ -56,7 +56,8 @@ awk -v FS="\t" '
     }
     END {
         # Print the results
-        print non_cached_sum " \033[90m(" cached_sum " cached)\033[0m"
+        total_sum = cached_sum + non_cached_sum
+        print total_sum " \033[90m(" non_cached_sum " new, " cached_sum " cached)\033[0m"
     }
 ' "$trace_file"
 
