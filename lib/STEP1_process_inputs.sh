@@ -1,15 +1,12 @@
 #!/bin/bash
 
-#rsync command to sync to nci
-#rsync -avh --update /Users/bradford_el/Garvan_Internship/Michael_Procedure_handle_refonly eb9831@gadi.nci.org.au:/g/data/tn36/pgs/Michael_Procedure_handle_refonly; rsync -avh --update eb9831@gadi.nci.org.au:/g/data/tn36/pgs/Michael_Procedure_handle_refonly/Michael_Procedure_handle_refonly /Users/bradford_el/Garvan_Internship/
-
-
 input_vcf=$1
 scoring_file=$2
 ref_file=$3
 dbsnp_file=$4
 snp_list_file=$5
 
+#Initialise Logging Variables
 num_total=0
 num_variants=0
 num_non_variants=0
@@ -26,6 +23,7 @@ num_non_variant_discarded_indels=0
 module load bcftools
 module load bedtools
 
+#Count total number of sites in input VCF
 num_total=$(bcftools view -H $input_vcf | wc -l)
 
 #Seperate variant and reference sites from the input VCF file
@@ -33,6 +31,7 @@ bcftools view -v snps,indels,mnps,other -o variants.vcf $input_vcf
 #-T ^variants.vcf ensures no sites in variants.vcf are included in non_variants.vcf ( some multiallelics were origninally being included)
 bcftools view -e 'TYPE="snp" | TYPE="indel" | TYPE="mnp" | TYPE="other"' -T ^variants.vcf -o non_variants.vcf $input_vcf 
 
+#Count number of variants and non-variants
 num_variants=$(bcftools view -H variants.vcf | sort | uniq | wc -l)
 num_non_variants=$(bcftools view -H non_variants.vcf | sort | uniq |  wc -l)
 
@@ -197,12 +196,6 @@ num_non_variant_extra_multiallelic=$(cat num_non_variant_extra_multiallelic.tmp)
 # Remove the temporary files
 rm num_non_variant_snps.tmp num_non_variant_indels.tmp num_non_variant_extra_multiallelic.tmp
 
-# Function to get the reverse complement of a DNA sequence
-# rev_comp() {
-#     local seq=$1
-#     echo "$seq" | tr 'ATCGatcg' 'TAGCtagc' | rev
-# }
-
 #TODO: Handle GT of './.'
 # Assign ALT allele for SNPs
 awk '
@@ -312,9 +305,6 @@ NR > 1 {
     print $0, (key in seq ? seq[key] : "");
 }' indels_sequences.fa merged_indels.tsv > merged_indels_with_seq.tsv
 
-#PGS000004 has INDELS with no rsIDs. PGS000030 has INDELS with rsIDs (and PGS000052)
-#####ADD dbsnp_alt column to INDELS table
-# Merge dbsnp file with merged_indels_with_seq.tsv based on CHR, POS, ID, REF columns
 
 # Check if at least one row has a value for id
 if awk 'NR > 1 && $5 != "." { found=1; exit } END { exit !found }' merged_indels_with_seq.tsv; then
@@ -329,9 +319,6 @@ if awk 'NR > 1 && $5 != "." { found=1; exit } END { exit !found }' merged_indels
         print $0, "dbsnp_alt";
         next;
     }' $dbsnp_file merged_indels_with_seq.tsv > merged_indels_with_seq_dbsnp_alt.tsv
-
-    # Process the dbsnp file and store the ALT values in a temporary file
-    #TODO: only do this for positions in SNPs list.
     
     # Load SNP list file into an array
     declare -A snp_list
@@ -339,6 +326,7 @@ if awk 'NR > 1 && $5 != "." { found=1; exit } END { exit !found }' merged_indels
         snp_list["$line"]=1
     done < "$snp_list_file"
     
+    # Process the dbsnp file and store the ALT values in a temporary file
     awk -v snp_list_file="$snp_list_file" '
     BEGIN {
         FS = OFS = "\t";
@@ -358,7 +346,7 @@ if awk 'NR > 1 && $5 != "." { found=1; exit } END { exit !found }' merged_indels
         }
     }' $dbsnp_file > dbsnp_temp.tsv
 
-    # Process the merged_indels_with_seq.tsv file and add the dbsnp_alt column
+    # Process the merged_indels_with_seq.tsv file and add the dbsnp_alt column based on CHR, POS columns
     awk '
     BEGIN {
         FS = OFS = "\t";
@@ -374,8 +362,6 @@ if awk 'NR > 1 && $5 != "." { found=1; exit } END { exit !found }' merged_indels
         
         # Get CHROM, POS, REF, ALT from rsID
         data = dbsnp_data[$5];
-        
-        #print "Debug: Processing rsID " $5 " with data " data > "/dev/stderr";
 
         if (data != "") {
             split(data, arr, ":");
@@ -398,7 +384,7 @@ if awk 'NR > 1 && $5 != "." { found=1; exit } END { exit !found }' merged_indels
     }' dbsnp_temp.tsv merged_indels_with_seq.tsv >> merged_indels_with_seq_dbsnp_alt.tsv
 
     # Clean up temporary files
-    #rm dbsnp_temp.tsv
+    rm dbsnp_temp.tsv
 else
     echo "No rows of input indels have an rsID"
     
@@ -449,6 +435,7 @@ NR > 1 && $12 != "." {
 
     split(dbsnp_alt, dbsnp_alt_arr, ",");
 
+    #Peform sanity check to ensure dbsnp alt is ok to use
     ok_flag = 0;
     if ((ref == other && dbsnp_alt == effect) || 
         (ref == effect && dbsnp_alt == other) || 
@@ -484,16 +471,15 @@ END {
     print num_non_variant_discarded_indels > "num_non_variant_discarded_indels.tmp";
 }' merged_indels_with_seq_dbsnp_alt.tsv > merged_indels_with_seq_dbsnp_alt_processed.tsv
 
-# Read the updated values from the temporary files
+# Read the updated logging values from the temporary files
 num_non_variant_indels_assigned_alts=$((num_non_variant_indels_assigned_alts + $(cat num_non_variant_indels_assigned_alts.tmp)))
 num_non_variant_discarded_indels=$((num_non_variant_discarded_indels + $(cat num_non_variant_discarded_indels.tmp)))
 
 # Remove the temporary files
 rm num_non_variant_indels_assigned_alts.tmp num_non_variant_discarded_indels.tmp
 
-#TODO: Make this only apply alt if dbsnp_alt was not added.
 #TODO: Handle REF with len > 1
-# Assign ALT alleles for INDELs
+# Assign ALT alleles for INDELs, where ALT is not pulled from dbSNP
 awk '
 BEGIN {
     FS = OFS = "\t";
@@ -605,7 +591,6 @@ bcftools index variants.vcf.gz
 bcftools concat -a reference_only_snps.vcf.gz reference_only_indels.vcf.gz variants.vcf.gz -o combined_processed.vcf
 
 
-#TODO: Work out why SNPs+INDELS is not non_variants
 # Print the logs
 {
 echo "Total number of variants in input VCF: $num_total"

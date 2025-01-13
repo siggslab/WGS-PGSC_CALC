@@ -211,7 +211,7 @@ if ( params.help || !params.bamfile || !params.target_build || !params.ref || !p
     //Reference index file check
     ref_idx_file = file("${removeExtension(params.ref)}.fasta.fai")
     if(!ref_idx_file.exists()) {
-        log.info "Reference fasta index file (.fasta.fai) does not exist, attempting to create it"
+        // log.info "Reference fasta index file (.fasta.fai) does not exist, attempting to create it"
         //Create index file
         create_ref_idx("${removeExtension(params.ref)}.fasta")
         ch_ref_fasta_fai = create_ref_idx.out.ref_idx
@@ -222,7 +222,7 @@ if ( params.help || !params.bamfile || !params.target_build || !params.ref || !p
     //Reference dictionary file check
     ref_dict_file = file("${removeExtension(params.ref)}.dict")
     if(!file(ref_dict_file).exists()) {
-        log.info "Reference dictionary file (.dict) does not exist, attempting to create it"
+        // log.info "Reference dictionary file (.dict) does not exist, attempting to create it"
         //Create dict file
         create_ref_dict("${removeExtension(params.ref)}.fasta")
         ch_ref_dict = create_ref_dict.out.ref_dict
@@ -253,7 +253,7 @@ if ( params.help || !params.bamfile || !params.target_build || !params.ref || !p
     //dbSNP Index File Check
     dbsnp_idx_file = file("${params.dbsnp}.idx")
     if (!dbsnp_idx_file.exists()) {
-        log.info "dbSNP index file does not exist, attempting to create it"
+        // log.info "dbSNP index file does not exist, attempting to create it"
         //Create index file
         index_vcf(ch_dbsnp)
         ch_dbsnp_idx = index_vcf.out.vcf_idx
@@ -336,7 +336,8 @@ if ( params.help || !params.bamfile || !params.target_build || !params.ref || !p
         params.target_build,
         ch_scores.flatten().collect(),
         workflow.workDir,
-        params.min_overlap
+        params.min_overlap,
+        params.singularityCacheDir
     )
 }}
 
