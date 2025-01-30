@@ -154,6 +154,9 @@ if ( params.help || !params.bamfile || !params.target_build || !params.ref || !p
         case !(params.pgs_id || params.efo_id || params.pgp_id || params.scorefile):
             log.info "Error: At least one of '--pgs_id', '--efo_id', '--pgp_id', or '--scorefile' must be provided"
 
+        case !params.add_sex:
+            log.info "WARNING: No sex data has been provided, if scorefile contains sex chromosomes pgsc_calc will fail loudly."
+
         default:
             // If none of the above are a problem, then run the workflow
             break
@@ -166,6 +169,9 @@ if ( params.help || !params.bamfile || !params.target_build || !params.ref || !p
 
 // If none of the above are a problem, then run the workflow
 } else {
+    if (!params.add_sex){
+        log.info "WARNING: No sex data has been provided, if scorefile contains sex chromosomes pgsc_calc will fail loudly."
+    }
 	
 	// DEFINE CHANNELS 
 	// See https://www.nextflow.io/docs/latest/channel.html#channels
@@ -301,7 +307,7 @@ if ( params.help || !params.bamfile || !params.target_build || !params.ref || !p
         GATK_genotype_GVCFs.out.gvcf_genotyped,
         ch_scores.flatten().collect(),
         ch_ref_fasta,
-        "${workflow.projectDir}/lib/STEP1_process_inputs.sh",
+        "${workflow.projectDir}/lib/populate_alt_alleles.sh",
         ch_dbsnp,
         combine_PRS_snp_positions_lists.out.PRS_snp_positions
     )
@@ -316,7 +322,8 @@ if ( params.help || !params.bamfile || !params.target_build || !params.ref || !p
     //Create pgsc_calc samplesheet, either using PLINK or VCF
     make_samplesheet(
         params.add_sex ? convert_vcf_to_plink.out.pgen: populate_alt_alleles.out.combined_processed_vcf,
-        params.add_sex
+        params.add_sex,
+        remove_chr_from_BAM.out.sample_name
     )
 
     //TODO -
@@ -343,8 +350,8 @@ if ( params.help || !params.bamfile || !params.target_build || !params.ref || !p
 
 // Print workflow execution summary 
 workflow.onComplete {
-    def traceFilePath = "${params.outdir}/runInfo/trace.txt"
-    def command = "./lib/SU_utilisation_calculation.sh"
+    def traceFilePath = "${workflow.projectDir}/${params.outdir}/runInfo/trace-*.tsv"
+    def command = "./lib/SU_utilisation_calculation.sh ${traceFilePath}"
     try {
         def process = command.execute()
         def su = process.text.trim()

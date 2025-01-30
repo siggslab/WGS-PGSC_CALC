@@ -27,7 +27,7 @@ process pgsc_calc {
 	// Define output(s)
 	// See: https://www.nextflow.io/docs/latest/process.html#outputs
 	output:
-	path("")
+	path("results"), emit: results_dir
 
 	// Define code to execute 
 	// See: https://www.nextflow.io/docs/latest/process.html#script
@@ -57,6 +57,6 @@ process pgsc_calc {
 		--singularityCacheDir ${singularity_cache_dir} \
 		
 
-	cp -r results/* ${workflow.projectDir}/${params.outdir}	
+	#cp -r results/* ${workflow.projectDir}/${params.outdir}	
 	"""
  }
