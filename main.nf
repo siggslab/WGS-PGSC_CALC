@@ -34,7 +34,9 @@ include { convert_vcf_to_plink }                from './modules/convert_vcf_to_p
 include { bcftools_normalise_vcf }              from './modules/bcftools_normalise_vcf.nf'
 include {correct_alt_for_homref}                from './modules/correct_alt_for_homref.nf'
 include {populate_alt_alleles}                  from './modules/populate_alt_alleles.nf'
-include {calculate_SU_utilisation}              from './modules/SU_Utilisation_calculation.nf'
+include {index_vcf}                             from './modules/index_vcf.nf'
+include {create_ref_dict}                       from './modules/create_ref_dict.nf'
+include {create_ref_idx}                        from './modules/create_ref_idx.nf'
 
 // Print a header for your pipeline 
 log.info """\
@@ -67,8 +69,6 @@ add_sex             : ${params.add_sex}
 """
 
 /// Help function 
-// This is an example of how to set out the help function that 
-// will be run if run command is incorrect or missing. 
 
 def helpMessage() {
     log.info"""
@@ -76,24 +76,25 @@ def helpMessage() {
 
   Required Arguments:
 
-  --bamfile        Specify full path and name of BAM file.
-  --target_build   Specify the target build. Must be 'GRCh37' or 'GRCh38'.
-  --ref            Specify full path and name of the reference genome file.
-  --dbsnp          Specify full path and name of the dbSNP file.
-  --outdir         Specify path to output directory.
+  --bamfile                 Specify full path and name of BAM file.
+  --target_build            Specify the target build. Must be 'GRCh37' or 'GRCh38'.
+  --ref                     Specify full path and name of the reference genome file.
+  --dbsnp                   Specify full path and name of the dbSNP file.
+  --outdir                  Specify path to output directory.
   
   At least one of the following must be provided:
-  --scorefile      Specify full path and name of score file.
-  --pgs_id         Specify PGS Catalog ID.
-  --efo_id         Specify EFO ID.
-  --pgp_id         Specify PGP ID.
+  --scorefile               Specify full path and name of score file.
+  --pgs_id                  Specify PGS Catalog ID.
+  --efo_id                  Specify EFO ID.
+  --pgp_id                  Specify PGP ID.
 
   Optional Arguments:
 
-  --help           Show this help message and exit.
-  --singularityCacheDir Specify path to Singularity cache directory.
-  --min_overlap    Specify minimum overlap.
-  --run_ancestry   Specify whether to run ancestry.
+  --help                    Show this help message and exit.
+  --singularityCacheDir     Specify path to Singularity cache directory.
+  --min_overlap             Specify minimum overlap.
+  --run_ancestry            Specify whether to run ancestry.
+  --add_sex                 Specify sample sex information
   
 """.stripIndent()
 }
@@ -114,6 +115,11 @@ def prepareAccessions(String accession, String key) {
     } else {
         return [(key): ""]
     }
+}
+
+//Remove file extension, keeping path
+def removeExtension(String path) {
+    return path.replaceAll(/\.[^\.]+$/, '')
 }
 
 // Define workflow structure. Include some input/runtime tests here.
@@ -168,7 +174,7 @@ if ( params.help || !params.bamfile || !params.target_build || !params.ref || !p
 	// DEMO CODE: DELETE FOR YOUR OWN WORKFLOWS - VALIDATE INPUT SAMPLES 
 	//check_input(Channel.fromPath(params.input, checkIfExists: true))
 	
-	//SUBWORKFLOW Download - Scorefiles
+	//SUBWORKFLOW Download - Scorefiles -----------------------------------------------
 	ch_scores = Channel.empty()
     if (params.scorefile) {
         ch_scores = ch_scores.mix(Channel.fromPath(params.scorefile, checkIfExists: true))
@@ -190,86 +196,133 @@ if ( params.help || !params.bamfile || !params.target_build || !params.ref || !p
         Nextflow.error("No valid accessions or scoring files provided. Please double check --pgs_id, --pgp_id, --trait_efo, or --scorefile parameters")
     }
 
-	//END SUBWORKFLOW
+	//END SUBWORKFLOW -------------------------------------------------------------------
+
+    //Reference File Check
+    ref_file = file("${removeExtension(params.ref)}.fasta")
+    if(!ref_file.exists()) {
+        log.info "Reference file does not exist:"
+        helpMessage()
+        exit 1
+    } else {
+        ch_ref_fasta = Channel.fromPath(ref_file, checkIfExists: true)
+    }
+
+    //Reference index file check
+    ref_idx_file = file("${removeExtension(params.ref)}.fasta.fai")
+    if(!ref_idx_file.exists()) {
+        // log.info "Reference fasta index file (.fasta.fai) does not exist, attempting to create it"
+        //Create index file
+        create_ref_idx("${removeExtension(params.ref)}.fasta")
+        ch_ref_fasta_fai = create_ref_idx.out.ref_idx
+    } else {
+        ch_ref_fasta_fai = Channel.fromPath("${removeExtension(params.ref)}.fasta.fai", checkIfExists: true)
+    }
+
+    //Reference dictionary file check
+    ref_dict_file = file("${removeExtension(params.ref)}.dict")
+    if(!file(ref_dict_file).exists()) {
+        // log.info "Reference dictionary file (.dict) does not exist, attempting to create it"
+        //Create dict file
+        create_ref_dict("${removeExtension(params.ref)}.fasta")
+        ch_ref_dict = create_ref_dict.out.ref_dict
+    } else {
+        ch_ref_dict = Channel.fromPath(ref_dict_file, checkIfExists: true)
+    }
+
+    //Sample File Check
+    bamfile_file = file(params.bamfile)
+    if(!bamfile_file.exists()) {
+        log.info "BAM file does not exist:"
+        helpMessage()
+        exit 1
+    } else {
+        ch_bamfile = Channel.fromPath(bamfile_file, checkIfExists: true)
+    }
+
+    //dbSNP File Check
+    dbsnp_file = file(params.dbsnp)
+    if (!dbsnp_file.exists()) {
+        log.info "dbSNP file does not exist:"
+        helpMessage()
+        exit 1
+    } else {
+        ch_dbsnp = Channel.fromPath(dbsnp_file, checkIfExists: true)
+    }
+    
+    //dbSNP Index File Check
+    dbsnp_idx_file = file("${params.dbsnp}.idx")
+    if (!dbsnp_idx_file.exists()) {
+        // log.info "dbSNP index file does not exist, attempting to create it"
+        //Create index file
+        index_vcf(ch_dbsnp)
+        ch_dbsnp_idx = index_vcf.out.vcf_idx
+    } else {
+        ch_dbsnp_idx = Channel.fromPath(dbsnp_idx_file, checkIfExists: true)
+    }
+
 
 	//Run generate_PRS_snp_positions_list for each scorefile
-	generate_PRS_snp_positions_list(ch_scores.flatten(), params.dbsnp)
+	generate_PRS_snp_positions_list(ch_scores.flatten(), ch_dbsnp)
 		.collect()
 		.set { prs_snp_positions_files }
-	//Combine all PRS_snp_positions.list files into one, removing duplicate lines
+	
+    //Combine all PRS_snp_positions.list files into one, removing duplicate lines
 	combine_PRS_snp_positions_lists(prs_snp_positions_files)
 
-    //TODO: Not sure if this is best method, should I be using GRCh37 instead?
-    //This seems very resource intensive
-    remove_chr_from_BAM(params.bamfile)
+    //Remove 'chr' prefix from BAM file
+    remove_chr_from_BAM(ch_bamfile)
 
 	//Run GATK HaplotypeCaller on the BAM file
     GATK_haplotype_caller(
         remove_chr_from_BAM.out.bam_file_no_chr,
-        "${params.ref}.fasta", 
-        "${params.ref}.fasta.fai",
-        "${params.ref}.dict",
+        ch_ref_fasta, 
+        ch_ref_fasta_fai,
+        ch_ref_dict,
         combine_PRS_snp_positions_lists.out.PRS_snp_positions,
-        params.dbsnp,
-        "${params.dbsnp}.idx"
+        ch_dbsnp,
+        ch_dbsnp_idx
         )
 
     //Run GATK GenotypeGVCFs on the gVCF file
     GATK_genotype_GVCFs(
-        "${params.ref}.fasta",
-        "${params.ref}.fasta.fai",
-        "${params.ref}.dict",
+        ch_ref_fasta,
+        ch_ref_fasta_fai,
+        ch_ref_dict,
         GATK_haplotype_caller.out.haplotypeCalled_gvcf,
         GATK_haplotype_caller.out.haplotypeCalled_gvcf_idx,
-        params.dbsnp,
-        "${params.dbsnp}.idx",
+        ch_dbsnp,
+        ch_dbsnp_idx,
         combine_PRS_snp_positions_lists.out.PRS_snp_positions
         )
 
-    //normalise VCF to handle multiallelic sites
-    //bcftools_normalise_vcf(GATK_genotype_GVCFs.out.gvcf_genotyped, "${params.ref}.fasta")
-
-    //Convert VCF to PLINK format
-    //convert_vcf_to_plink(bcftools_normalise_vcf.out.normalised_vcf)
-
-    //Populate ALT Alleles
+    //Populate ALT Alleles, using custom logic (handing HOMREF, using dbSNP for indels)
     populate_alt_alleles(
         GATK_genotype_GVCFs.out.gvcf_genotyped,
         ch_scores.flatten().collect(),
-        "${params.ref}.fasta",
+        ch_ref_fasta,
         "${workflow.projectDir}/lib/STEP1_process_inputs.sh",
-        params.dbsnp,
+        ch_dbsnp,
         combine_PRS_snp_positions_lists.out.PRS_snp_positions
     )
-    //Testing normalising after processing
-    //bcftools_normalise_vcf(populate_alt_alleles.out.combined_processed_vcf, "${params.ref}.fasta")
+
+    //If sex information provided, convert VCF to PLINK format adding sex information
     if (params.add_sex) {
-        bcftools_normalise_vcf(populate_alt_alleles.out.combined_processed_vcf, "${params.ref}.fasta")
+        //Normalise VCF to handle multiallelic sites
+        bcftools_normalise_vcf(populate_alt_alleles.out.combined_processed_vcf, ch_ref_fasta)
+        //Convert VCF to PLINK format, adding sex information
         convert_vcf_to_plink(bcftools_normalise_vcf.out.normalised_vcf, params.add_sex)
     } 
+    //Create pgsc_calc samplesheet, either using PLINK or VCF
     make_samplesheet(
         params.add_sex ? convert_vcf_to_plink.out.pgen: populate_alt_alleles.out.combined_processed_vcf,
         params.add_sex
     )
 
-
-    //Make samplesheet from processed VCF
-    //make_samplesheet(GATK_genotype_GVCFs.out.gvcf_genotyped)
-    // make_samplesheet(populate_alt_alleles.out.combined_processed_vcf)
-
-    //Correct ALT for HOMREF
-    //correct_alt_for_homref(GATK_genotype_GVCFs.out.gvcf_genotyped)
-
-    //Make_samplesheet from PLINK files
-    //make_samplesheet(convert_vcf_to_plink.out.bed)
-
-    //Calculate Minimum Overlap (reference sites otherwise lower %)
-    //calculate_min_overlap(GATK_genotype_GVCFs.out.gvcf_genotyped, params.min_overlap)
-
-    //TODO
+    //TODO -
     //Maybe I should run pgsc_calc test config with internet access, to load dependencies, then run main pipeline...
 
-    // Create a channel of paths for the input files
+    // Create a channel of paths for the input files, either using PLINK or VCF files
     if(params.add_sex){
         populate_alt_alleles.out.combined_processed_vcf.concat(convert_vcf_to_plink.out.pgen, convert_vcf_to_plink.out.pvar, convert_vcf_to_plink.out.psam).set { ch_input_files }
     } else {
@@ -280,55 +333,18 @@ if ( params.help || !params.bamfile || !params.target_build || !params.ref || !p
     pgsc_calc(
         make_samplesheet.out.samplesheet,
         ch_input_files.flatten().collect(),
-        //GATK_genotype_GVCFs.out.gvcf_genotyped,
-        //bcftools_normalise_vcf.out.normalised_vcf,
         params.target_build,
         ch_scores.flatten().collect(),
         workflow.workDir,
-        params.min_overlap
+        params.min_overlap,
+        params.singularityCacheDir
     )
 }}
 
 // Print workflow execution summary 
 workflow.onComplete {
     def traceFilePath = "${params.outdir}/runInfo/trace.txt"
-    def command = """
-    bash -c '
-    echo "HELLO WORLD"
-    #for tf in \$(echo ${params.outdir}/runInfo/trace.txt); do
-    #    printf "\$tf:\t"
-    #    # Find the header column index of 'workdir' and print the <workdir>/.command.log files
-    #    # Then, extract the SUs from the log files and sum them up
-    #    awk -v FS="\\t" 'NR==1 { for (i=1; i<=NF; i++) if (\$i=="workdir") wd=i} NR>1 {print \$wd}' \$tf | while read WORKDIR; do
-    #        LOG=\$WORKDIR/.command.log
-    #        if [ -f \$LOG ]; then
-    #            grep -m 1 "Service Units:" \$LOG | sed -E -e 's/^.*:\\s+([0-9\\.]+)\$/\\1/'
-    #        fi
-    #    done | awk -v FS="\\t" '{ sum+=\$0 } END { print sum }'
-    #done
-
-    # Get the most recent trace-[timestamp].tsv file
-    trace_file=\$(ls -t ${params.outdir}/runInfo/trace-*.tsv 2>/dev/null | head -n 1)
-
-    # Check if a trace file was found
-    if [ -z "\$trace_file" ]; then
-        echo "No trace-[timestamp].tsv files found in results/runInfo/"
-        exit 1
-    fi
-
-    # Process the most recent trace file
-    printf "\$trace_file:\t"
-    # Find the header column index of \'workdir\' and print the <workdir>/.command.log files
-    # Then, extract the SUs from the log files and sum them up
-    awk -v FS="\\t" \'NR==1 { for (i=1; i<=NF; i++) if (\$i=="workdir") wd=i } NR>1 { print \$wd }\' "\$trace_file" | while read -r WORKDIR; do
-        LOG="\$WORKDIR/.command.log"
-        if [ -f "\$LOG" ]; then
-            grep -m 1 "Service Units:" "\$LOG" | sed -E -e \'s/^.*:\\s+([0-9\\.]+)\$/\\1/\'
-        fi
-    done | awk -v FS="\\t" \'{ sum+=\$0 } END { print sum }\'
-    '
-    """
-    command = "./lib/SU_utilisation_calculation.sh"
+    def command = "./lib/SU_utilisation_calculation.sh"
     try {
         def process = command.execute()
         def su = process.text.trim()
@@ -347,8 +363,8 @@ ${su ? "\nSU utilisation: ${su}\n" : ""}
 =======================================================================================
     """
     } catch (Exception e) {
-        // println "Error executing command: ${e.message}"
-            summary = """
+        // If the command fails, print the summary without SU information
+        summary = """
 =======================================================================================
 Workflow execution summary
 =======================================================================================
@@ -362,11 +378,4 @@ results     : ${params.outdir}
     """
     }
     println summary
-    // println "cat $traceFilePath".execute().text
-
-    // println "SU value: ${su}"
-    // println "Command: ${command}"
-
-
-
 }
