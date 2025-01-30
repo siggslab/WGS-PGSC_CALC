@@ -23,8 +23,6 @@ process make_samplesheet {
 	// See: https://www.nextflow.io/docs/latest/process.html#script
 	script:
 	"""
-	module load bcftools
-	sample_name=\$(bcftools query -l ${processed_vcf})
 	basename=\$(basename ${processed_vcf} *)
 	cat <<EOF > samplesheet.csv
 	sampleset,path_prefix,chrom,format
