@@ -350,7 +350,7 @@ if ( params.help || !params.bamfile || !params.target_build || !params.ref || !p
 
 // Print workflow execution summary 
 workflow.onComplete {
-    def traceFilePath = "${params.outdir}/runInfo/trace-*.tsv"
+    def traceFilePath = "${workflow.projectDir}/${params.outdir}/runInfo/trace-*.tsv"
     def command = "./lib/SU_utilisation_calculation.sh ${traceFilePath}"
     try {
         def process = command.execute()
