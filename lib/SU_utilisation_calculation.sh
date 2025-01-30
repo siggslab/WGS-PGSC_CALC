@@ -1,7 +1,8 @@
 #!/bin/bash
 
 
-trace_file=$(ls -t results/runInfo/trace-*.tsv 2>/dev/null | head -n 1)
+
+trace_file=$(ls -t $1 2>/dev/null | head -n 1)
 
 # Check if a trace file was found
 if [ -z "$trace_file" ]; then

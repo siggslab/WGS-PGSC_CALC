@@ -19,11 +19,13 @@ process remove_chr_from_BAM {
 
     output:
     path("${bam_file.baseName}_no_chr.bam"), emit: bam_file_no_chr
+    env('sample_name'), emit: sample_name
 
     script:
     """
     base_name=\$(basename ${bam_file} .bam)
     samtools reheader -c 'sed "s/\tSN:chr/\tSN:/g"' ${bam_file} > \${base_name}_no_chr.bam
     samtools index \${base_name}_no_chr.bam
+    sample_name=\$(samtools view -H ${bam_file} | grep '^@RG' | awk -F'\\t' '{for(i=1;i<=NF;i++){if(\$i ~ /^SM:/){print substr(\$i,4)}}}')
     """
  }
